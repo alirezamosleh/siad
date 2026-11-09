@@ -1,0 +1,40 @@
+/* =========================================================
+   USER CUSTOM OVERRIDES (HIGHEST PRIORITY)
+   File: custom/custom-overrides.css
+
+   Loaded LAST. Use for quick one-off fixes across all pages.
+   Prefer page files under custom/styles/ for page-specific work.
+   ========================================================= */
+
+.dropdown-item{
+   display: flex;
+}
+.me-3 {
+   margin-left: 1rem;
+}
+
+/* =========================================================
+   HODA LOGO — Auth / Join / Error pages (immediate fallback)
+   ---------------------------------------------------------
+   SignIn, Signup, RoomJoin ("ورود به کلاس"), password-reset and
+   error pages render <Logo /> with the `BrandingImage` site
+   setting, which is still /assets/bbb_logo-<digest>.png on a
+   stock database. Repaint it with the university logo here, so
+   the correct branding appears even before the DB setting is
+   repointed (see custom/set_brand_image.rb — the real fix).
+   ========================================================= */
+img.logo[src*='bbb_logo'],
+img.small-logo[src*='bbb_logo'],
+img[alt='CompanyLogo'][src*='bbb_logo'] {
+  content: url('/hoda-logo.png') !important;
+  object-fit: contain;
+  border-radius: 14px;
+}
+
+/* Keep the dashboard tab surfaces consistent with the Hoda page background.
+   Bootstrap's full-bleed box-shadow otherwise leaves a visible whitesmoke band. */
+.wide-white,
+.background-whitesmoke {
+  background: #fbf8f5 !important;
+  box-shadow: 0 0 0 100vmax #fbf8f5 !important;
+}

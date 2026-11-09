@@ -1,0 +1,142 @@
+# Greenlight v3 — production WITH Nginx reverse proxy
+# Domain: sakoo.hu.jz.ac.ir
+#
+# 1. Point DNS A record → this server
+# 2. Edit .env if BBB credentials differ
+# 3. Start:  docker compose up -d
+# 4. TLS:    ./scripts/init-letsencrypt.sh   (ports 80/443 must be public)
+# 5. Admin:  docker exec -it gl-nginx-app bundle exec rake admin:create
+# 6. Open:   https://sakoo.hu.jz.ac.ir
+
+services:
+  nginx:
+    image: docker.arvancloud.ir/nginx:1.27-alpine
+    container_name: gl-nginx-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+      - ./data/certbot/conf:/etc/letsencrypt:ro
+      - ./data/certbot/www:/var/www/certbot:ro
+    depends_on:
+      - greenlight-v3
+
+  certbot:
+    image: docker.arvancloud.ir/certbot/certbot:latest
+    container_name: gl-nginx-certbot
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h; done"
+
+  postgres:
+    image: docker.arvancloud.ir/postgres:14-alpine3.20
+    container_name: gl-nginx-postgres
+    restart: unless-stopped
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=greenlight-v3-production
+
+  redis:
+    image: docker.arvancloud.ir/redis:6.2-alpine3.20
+    container_name: gl-nginx-redis
+    restart: unless-stopped
+    volumes:
+      - ./data/redis:/data
+
+  greenlight-v3:
+    image: docker.arvancloud.ir/bigbluebutton/greenlight:v3
+    container_name: gl-nginx-app
+    entrypoint: [bin/start]
+    restart: unless-stopped
+    env_file: .env
+    expose:
+      - "3000"
+    logging:
+      driver: ${LOGGING_DRIVER:-json-file}
+    volumes:
+      - ./data/storage:/usr/src/app/storage
+      # Behind nginx TLS: trust X-Forwarded-* and use secure cookies
+      - ./config/initializers/session_store.rb:/usr/src/app/config/initializers/session_store.rb:ro
+      - ./config/initializers/zz_trust_proxy.rb:/usr/src/app/config/initializers/zz_trust_proxy.rb:ro
+      - ./config/initializers/zz_relax_csrf_origin.rb:/usr/src/app/config/initializers/zz_relax_csrf_origin.rb:ro
+      - ./config/initializers/zz_csrf_api_rescue.rb:/usr/src/app/config/initializers/zz_csrf_api_rescue.rb:ro
+      - ./config/controllers/sessions_controller.rb:/usr/src/app/app/controllers/api/v1/sessions_controller.rb:ro
+      - ./config/controllers/components_controller.rb:/usr/src/app/app/controllers/components_controller.rb:ro
+      - ./config/controllers/recordings_controller.rb:/usr/src/app/app/controllers/api/v1/recordings_controller.rb:ro
+      - ./config/controllers/rooms_controller.rb:/usr/src/app/app/controllers/api/v1/rooms_controller.rb:ro
+      - ../greenlight/app/controllers/external_controller.rb:/usr/src/app/app/controllers/external_controller.rb:ro
+      - ./config/controllers/authorizable.rb:/usr/src/app/app/controllers/concerns/authorizable.rb:ro
+      # JoinIN BBB: meeting passwords (role= join is rejected)
+      - ./config/services/big_blue_button_api.rb:/usr/src/app/app/services/big_blue_button_api.rb:ro
+      - ./config/services/recording_catalog_sync.rb:/usr/src/app/app/services/recording_catalog_sync.rb:ro
+      - ./config/services/recording_creator.rb:/usr/src/app/app/services/recording_creator.rb:ro
+      # Hoda branding / Persian / RTL
+      - ./custom/locales/fa_IR.json:/usr/src/app/app/assets/locales/fa_IR.json:ro
+      - ./custom/locales/fa.json:/usr/src/app/app/assets/locales/fa.json:ro
+      - ./custom/locales/en.json:/usr/src/app/app/assets/locales/en.json:ro
+      - ./custom/locales/fa.json:/usr/src/app/public/assets/fa-5156d0fe2bf15e3da11cb5d8ac2bb1adf00e29a17eecee3ed27c2b46654bbf8d.json:ro
+      - ./custom/locales/fa_IR.json:/usr/src/app/public/assets/fa_IR-5156d0fe2bf15e3da11cb5d8ac2bb1adf00e29a17eecee3ed27c2b46654bbf8d.json:ro
+      - ./config/controllers/locales_controller.rb:/usr/src/app/app/controllers/api/v1/locales_controller.rb:ro
+      - ./custom/application.html.erb:/usr/src/app/app/views/layouts/application.html.erb:ro
+      - ./custom/fonts:/usr/src/app/public/fonts:ro
+      - ./custom/hoda-theme.css:/usr/src/app/public/hoda-theme.css:ro
+      - ./custom/styles:/usr/src/app/public/styles:ro
+      - ./custom/custom-overrides.css:/usr/src/app/public/custom-overrides.css:ro
+      - ./custom/rtl-fix.js:/usr/src/app/public/rtl-fix.js:ro
+      - ./custom/assets/logo-hoda.png:/usr/src/app/public/hoda-logo.png:ro
+      - ./custom/assets/favicon.png:/usr/src/app/public/hoda-favicon.png:ro
+      - ./custom/assets/logo.svg:/usr/src/app/public/hoda-logo.svg:ro
+      - ./custom/assets/logo-lockup.svg:/usr/src/app/public/hoda-logo-lockup.svg:ro
+      - ./custom/react/App.jsx:/usr/src/app/app/javascript/App.jsx:ro
+      - ./custom/react/home/HomePage.jsx:/usr/src/app/app/javascript/components/home/HomePage.jsx:ro
+      - ./custom/react/home/HomepageFeatureCard.jsx:/usr/src/app/app/javascript/components/home/HomepageFeatureCard.jsx:ro
+      - ./custom/react/shared_components/Header.jsx:/usr/src/app/app/javascript/components/shared_components/Header.jsx:ro
+      - ./custom/react/shared_components/Footer.jsx:/usr/src/app/app/javascript/components/shared_components/Footer.jsx:ro
+      - ./custom/react/shared_components/Logo.jsx:/usr/src/app/app/javascript/components/shared_components/Logo.jsx:ro
+      - ./custom/react/helpers/LocaleHelper.js:/usr/src/app/app/javascript/helpers/LocaleHelper.js:ro
+      - ./custom/react/home/NavbarSignedIn.jsx:/usr/src/app/app/javascript/components/home/NavbarSignedIn.jsx:ro
+      - ./custom/react/home/NavbarNotSignedIn.jsx:/usr/src/app/app/javascript/components/home/NavbarNotSignedIn.jsx:ro
+      - ./custom/react/home/AuthButtons.jsx:/usr/src/app/app/javascript/components/home/AuthButtons.jsx:ro
+      - ./custom/react/rooms/Rooms.jsx:/usr/src/app/app/javascript/components/rooms/Rooms.jsx:ro
+      - ./custom/react/rooms/RoomCard.jsx:/usr/src/app/app/javascript/components/rooms/RoomCard.jsx:ro
+      - ./custom/react/rooms/room/Room.jsx:/usr/src/app/app/javascript/components/rooms/room/Room.jsx:ro
+      - ./custom/react/users/authentication/SignIn.jsx:/usr/src/app/app/javascript/components/users/authentication/SignIn.jsx:ro
+      - ./custom/react/users/authentication/Signup.jsx:/usr/src/app/app/javascript/components/users/authentication/Signup.jsx:ro
+      - ./custom/dist/hoda-main.js:/usr/src/app/public/assets/main-f23e94fa0f0782a3fefe645cf95e75d6b53d1311a4af188d650b791e35c0e38b.js:ro
+    depends_on:
+      - postgres
+      - redis
+
+  recordings-sync:
+    image: docker.arvancloud.ir/bigbluebutton/greenlight:v3
+    container_name: gl-nginx-recordings-sync
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["bundle exec rails runner /usr/src/app/custom/recordings_sync_worker.rb"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      RECORDINGS_SYNC_INTERVAL: "120"
+      RECORDINGS_FULL_SYNC_EVERY: "5"
+    volumes:
+      - ./config/services/big_blue_button_api.rb:/usr/src/app/app/services/big_blue_button_api.rb:ro
+      - ./config/services/recording_catalog_sync.rb:/usr/src/app/app/services/recording_catalog_sync.rb:ro
+      - ./config/services/recording_creator.rb:/usr/src/app/app/services/recording_creator.rb:ro
+      - ./custom/recordings_sync_worker.rb:/usr/src/app/custom/recordings_sync_worker.rb:ro
+    depends_on:
+      - postgres
+      - redis
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.200.60.0/24

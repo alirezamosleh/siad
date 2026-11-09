@@ -1,0 +1,15 @@
+# Force HTTPS detection from reverse proxy
+SetEnvIf X-Forwarded-Proto https HTTPS=on
+SetEnvIf X-Forwarded-SSL on HTTPS=on
+SetEnvIf X-Forwarded-Port 443 SERVER_PORT=443
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  
+  # Force HTTPS environment
+  RewriteCond %{HTTP:X-Forwarded-Proto} =https
+  RewriteRule .* - [E=HTTPS:on,E=REQUEST_SCHEME:https]
+  
+  RewriteCond %{HTTP:X-Forwarded-Port} =443
+  RewriteRule .* - [E=SERVER_PORT:443]
+</IfModule>

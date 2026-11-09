@@ -1,0 +1,31 @@
+/* Sign-in / sign-up page styles — edit freely */
+
+/* Auth / toast visibility */
+html body .Toastify__toast-container {
+  z-index: 99999 !important;
+}
+html body .Toastify__toast,
+html body .hoda-toast {
+  font-family: Vazirmatn, Tahoma, sans-serif !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 24px rgba(61, 14, 68, 0.18) !important;
+  direction: rtl;
+  text-align: right;
+}
+
+/* Force toasts into the visible viewport (theme/bootstrap offsets were pushing them off-screen) */
+html body .Toastify__toast-container,
+html body .Toastify__toast-container--top-center,
+html body .Toastify__toast-container--bottom-left,
+html body .Toastify__toast-container--bottom-right {
+  position: fixed !important;
+  top: 1rem !important;
+  bottom: auto !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  width: min(420px, calc(100vw - 2rem)) !important;
+  z-index: 2147483647 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}

@@ -1,0 +1,39 @@
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Local database, uploads, and service data
+/data/
+/greenlight/data/
+/html/moodledata/
+
+# TLS certificates and private keys
+/ssl/*.pem
+/ssl/*.key
+/ssl/*.crt
+/ssl/*.csr
+*.pem
+*.key
+*.crt
+*.csr
+
+# Moodle runtime configuration
+/html/config.php
+
+# Logs and temporary files
+*.log
+*.log.*
+*.tmp
+*.pid
+*.bak
+*.orig
+*~
+*.sw?
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.code-workspace

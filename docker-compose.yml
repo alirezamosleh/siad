@@ -1,0 +1,284 @@
+version: '3.8'
+
+# Optimized Docker Compose for Moodle
+# Server: 8 cores, 16GB RAM
+# Load: 1500 users, 400 peak concurrent
+# Last updated: 2026-02-10
+
+services:
+  mariadb:
+    image: bitnami/mariadb:11.2
+    container_name: moodle_mariadb
+    restart: unless-stopped
+    environment:
+      - MARIADB_ROOT_PASSWORD=SEDO3482389D4
+      - MARIADB_USER=alirezabb
+      - MARIADB_PASSWORD=SEDO3482389D4
+      - MARIADB_DATABASE=siad
+      - MARIADB_LOG_QUERIES=OFF
+    volumes:
+      - mariadb_data:/bitnami/mariadb
+      - ./mariadb.my.cnf:/opt/bitnami/mariadb/conf/my_custom.cnf:ro
+
+  redis:
+    image: bitnami/redis:7.2
+    container_name: moodle_redis
+    restart: unless-stopped
+    environment:
+      - REDIS_PASSWORD=kali
+      - REDIS_MAXMEMORY=4096mb       
+      - REDIS_MAXMEMORY_POLICY=allkeys-lru
+      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+      - REDIS_SAVE=900 1 300 10        
+      - REDIS_APPENDONLY=yes         
+      - REDIS_APPENDFSYNC=everysec      
+    volumes:
+      - redis_data:/bitnami/redis/data
+
+  
+  moodle:
+    image: bitnami/moodle:4.5
+    container_name: moodle_app
+    expose:
+      - "8080"
+    restart: unless-stopped 
+    entrypoint: ["/docker/moodle-entrypoint.sh"]
+    extra_hosts:
+      - "joinin.ir:185.37.54.19"
+      - "join.jz.ac.ir:185.37.54.19"
+      - "api0.joinin.ir:185.37.54.19"
+      - "api.joinin.ir:185.37.54.19"
+      - "faryan.cloud:185.37.54.19"
+        #- "mirror.arvancloud.ir:185.143.233.234"  
+    environment:
+      # ===== DATABASE CONFIG =====
+      - MOODLE_DATABASE_TYPE=mariadb
+      - MOODLE_DATABASE_HOST=mariadb
+      - MOODLE_DATABASE_PORT_NUMBER=3306
+      - MOODLE_DATABASE_USER=alirezabb
+      - MOODLE_DATABASE_PASSWORD=SEDO3482389D4
+      - MOODLE_DATABASE_NAME=siad
+
+      # ===== ADMIN CREDENTIALS =====
+      - MOODLE_USERNAME=admin1
+      - MOODLE_PASSWORD=N.mosleh63@
+      - MOODLE_EMAIL=work.alirezamosleh@gmail.com
+      - MOODLE_SITE_NAME=سیاد
+
+      # ===== SITE URL & PROXY =====
+      - MOODLE_HOST=siad.hu.jz.ac.ir
+      - MOODLE_REVERSEPROXY=yes
+      - MOODLE_SSLPROXY=yes
+
+      # ===== REDIS SESSION =====
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=kali
+
+      # ===== PHP SETTINGS =====
+      - PHP_MEMORY_LIMIT=512M
+      - PHP_MAX_EXECUTION_TIME=300
+      - PHP_UPLOAD_MAX_FILESIZE=100M
+      - PHP_POST_MAX_SIZE=100M
+
+      # ===== SKIP BOOTSTRAP (if database already exists) =====
+      # - MOODLE_SKIP_BOOTSTRAP=yes
+      - BITNAMI_DEBUG=false
+      - MOODLE_REVERSE_PROXY=yes
+    
+      - MOODLE_SSL_PROXY=yes
+      - MOODLE_HTTP_PORT_NUMBER=8080
+    volumes:
+      - ./html:/bitnami/moodle
+      - moodledata_data:/bitnami/moodledata
+      - ./php.ini:/opt/bitnami/php/etc/conf.d/custom.ini:ro
+      - ./moodle-entrypoint.sh:/docker/moodle-entrypoint.sh:ro
+        #- ./config.php:/bitnami/moodle/config.php
+      - ./php-fpm.conf:/opt/bitnami/php/etc/php-fpm.d/z-custom.conf
+    
+      
+    depends_on:
+      - mariadb
+      - redis
+
+  # Moodle Cron - Essential for background tasks
+  moodle-cron:
+    image: moodle-cron:v1
+    container_name: moodle_cron
+    user: "0:0"   
+    restart: unless-stopped
+    entrypoint: ["/docker/moodle-entrypoint.sh"]    
+    environment:
+      - MOODLE_DATABASE_TYPE=mariadb
+      - MOODLE_DATABASE_HOST=mariadb
+      - MOODLE_DATABASE_PORT_NUMBER=3306
+      - MOODLE_DATABASE_USER=alirezabb
+      - MOODLE_DATABASE_PASSWORD=SEDO3482389D4
+      - MOODLE_DATABASE_NAME=siad
+      - MOODLE_HOST=siad.hu.jz.ac.ir
+      - MOODLE_REVERSEPROXY=yes
+      - MOODLE_SSLPROXY=yes
+    volumes:
+      - ./html:/bitnami/moodle
+      - moodledata_data:/bitnami/moodledata
+      - ./php.ini:/opt/bitnami/php/etc/conf.d/custom.ini:ro
+      - ./moodle-cron-entrypoint.sh:/docker/moodle-entrypoint.sh:ro
+        # ./config.php:/bitnami/moodle/config.php
+    depends_on:
+      - moodle
+      - redis
+
+  # Greenlight data services are isolated from Moodle's MariaDB/Redis stack.
+  greenlight-postgres:
+    image: docker.arvancloud.ir/postgres:14-alpine3.20
+    container_name: gl-nginx-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: greenlight-v3-production
+    volumes:
+      - greenlight_postgres_data:/var/lib/postgresql/data
+
+  greenlight-redis:
+    image: docker.arvancloud.ir/redis:6.2-alpine3.20
+    container_name: gl-nginx-redis
+    restart: unless-stopped
+    volumes:
+      - greenlight_redis_data:/data
+
+  greenlight-v3:
+    image: docker.arvancloud.ir/bigbluebutton/greenlight:v3
+    container_name: gl-nginx-app
+    entrypoint: [bin/start]
+    restart: unless-stopped
+    env_file: ./greenlight/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@greenlight-postgres:5432/greenlight-v3-production
+      REDIS_URL: redis://greenlight-redis:6379
+    expose:
+      - "3000"
+    logging:
+      driver: ${LOGGING_DRIVER:-json-file}
+    volumes:
+      - ./data/storage:/usr/src/app/storage
+      # Behind nginx TLS: trust X-Forwarded-* and use secure cookies
+      - ./greenlight/config/initializers/session_store.rb:/usr/src/app/config/initializers/session_store.rb:ro
+      - ./greenlight/config/initializers/zz_trust_proxy.rb:/usr/src/app/config/initializers/zz_trust_proxy.rb:ro
+      - ./greenlight/config/initializers/zz_relax_csrf_origin.rb:/usr/src/app/config/initializers/zz_relax_csrf_origin.rb:ro
+      - ./greenlight/config/initializers/zz_csrf_api_rescue.rb:/usr/src/app/config/initializers/zz_csrf_api_rescue.rb:ro
+      - ./greenlight/config/controllers/sessions_controller.rb:/usr/src/app/app/controllers/api/v1/sessions_controller.rb:ro
+      - ./greenlight/config/controllers/components_controller.rb:/usr/src/app/app/controllers/components_controller.rb:ro
+      - ./greenlight/config/controllers/recordings_controller.rb:/usr/src/app/app/controllers/api/v1/recordings_controller.rb:ro
+      - ./greenlight/config/controllers/rooms_controller.rb:/usr/src/app/app/controllers/api/v1/rooms_controller.rb:ro
+      - ./greenlight/config/controllers/authorizable.rb:/usr/src/app/app/controllers/concerns/authorizable.rb:ro
+      # JoinIN BBB: meeting passwords (role= join is rejected)
+      - ./greenlight/config/services/big_blue_button_api.rb:/usr/src/app/app/services/big_blue_button_api.rb:ro
+      - ./greenlight/config/services/recording_catalog_sync.rb:/usr/src/app/app/services/recording_catalog_sync.rb:ro
+      - ./greenlight/config/services/recording_creator.rb:/usr/src/app/app/services/recording_creator.rb:ro
+      # ./greenlight/da branding / Persian / RTL
+      - ./greenlight/custom/locales/fa_IR.json:/usr/src/app/app/assets/locales/fa_IR.json:ro
+      - ./greenlight/custom/locales/fa.json:/usr/src/app/app/assets/locales/fa.json:ro
+      - ./greenlight/custom/locales/en.json:/usr/src/app/app/assets/locales/en.json:ro
+      - ./greenlight/custom/locales/fa.json:/usr/src/app/public/assets/fa-5156d0fe2bf15e3da11cb5d8ac2bb1adf00e29a17eecee3ed27c2b46654bbf8d.json:ro
+      - ./greenlight/custom/locales/fa_IR.json:/usr/src/app/public/assets/fa_IR-5156d0fe2bf15e3da11cb5d8ac2bb1adf00e29a17eecee3ed27c2b46654bbf8d.json:ro
+      - ./greenlight/config/controllers/locales_controller.rb:/usr/src/app/app/controllers/api/v1/locales_controller.rb:ro
+      - ./greenlight/custom/application.html.erb:/usr/src/app/app/views/layouts/application.html.erb:ro
+      - ./greenlight/custom/fonts:/usr/src/app/public/fonts:ro
+      - ./greenlight/custom/hoda-theme.css:/usr/src/app/public/hoda-theme.css:ro
+      - ./greenlight/custom/styles:/usr/src/app/public/styles:ro
+      - ./greenlight/custom/custom-overrides.css:/usr/src/app/public/custom-overrides.css:ro
+      - ./greenlight/custom/rtl-fix.js:/usr/src/app/public/rtl-fix.js:ro
+      - ./greenlight/custom/assets/logo-hoda.png:/usr/src/app/public/hoda-logo.png:ro
+      - ./greenlight/custom/assets/favicon.png:/usr/src/app/public/hoda-favicon.png:ro
+      - ./greenlight/custom/assets/logo.svg:/usr/src/app/public/hoda-logo.svg:ro
+      - ./greenlight/custom/assets/logo-lockup.svg:/usr/src/app/public/hoda-logo-lockup.svg:ro
+      - ./greenlight/custom/react/App.jsx:/usr/src/app/app/javascript/App.jsx:ro
+      - ./greenlight/custom/react/home/HomePage.jsx:/usr/src/app/app/javascript/components/home/HomePage.jsx:ro
+      - ./greenlight/custom/react/home/HomepageFeatureCard.jsx:/usr/src/app/app/javascript/components/home/HomepageFeatureCard.jsx:ro
+      - ./greenlight/custom/react/shared_components/Header.jsx:/usr/src/app/app/javascript/components/shared_components/Header.jsx:ro
+      - ./greenlight/custom/react/shared_components/Footer.jsx:/usr/src/app/app/javascript/components/shared_components/Footer.jsx:ro
+      - ./greenlight/custom/react/shared_components/Logo.jsx:/usr/src/app/app/javascript/components/shared_components/Logo.jsx:ro
+      - ./greenlight/custom/react/helpers/LocaleHelper.js:/usr/src/app/app/javascript/helpers/LocaleHelper.js:ro
+      - ./greenlight/custom/react/home/NavbarSignedIn.jsx:/usr/src/app/app/javascript/components/home/NavbarSignedIn.jsx:ro
+      - ./greenlight/custom/react/home/NavbarNotSignedIn.jsx:/usr/src/app/app/javascript/components/home/NavbarNotSignedIn.jsx:ro
+      - ./greenlight/custom/react/home/AuthButtons.jsx:/usr/src/app/app/javascript/components/home/AuthButtons.jsx:ro
+      - ./greenlight/custom/react/rooms/Rooms.jsx:/usr/src/app/app/javascript/components/rooms/Rooms.jsx:ro
+      - ./greenlight/custom/react/rooms/RoomCard.jsx:/usr/src/app/app/javascript/components/rooms/RoomCard.jsx:ro
+      - ./greenlight/custom/react/rooms/room/Room.jsx:/usr/src/app/app/javascript/components/rooms/room/Room.jsx:ro
+      - ./greenlight/custom/react/users/authentication/SignIn.jsx:/usr/src/app/app/javascript/components/users/authentication/SignIn.jsx:ro
+      - ./greenlight/custom/react/users/authentication/Signup.jsx:/usr/src/app/app/javascript/components/users/authentication/Signup.jsx:ro
+      - ./greenlight/custom/dist/hoda-main.js:/usr/src/app/public/assets/main-f23e94fa0f0782a3fefe645cf95e75d6b53d1311a4af188d650b791e35c0e38b.js:ro
+    depends_on:
+      - greenlight-postgres
+      - greenlight-redis
+
+
+  recordings-sync:
+    image: docker.arvancloud.ir/bigbluebutton/greenlight:v3
+    container_name: gl-nginx-recordings-sync
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["bundle exec rails runner /usr/src/app/custom/recordings_sync_worker.rb"]
+    restart: unless-stopped
+    env_file: ./greenlight/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@greenlight-postgres:5432/greenlight-v3-production
+      REDIS_URL: redis://greenlight-redis:6379
+      RECORDINGS_SYNC_INTERVAL: "120"
+      RECORDINGS_FULL_SYNC_EVERY: "5"
+    volumes:
+      - ./greenlight/config/services/big_blue_button_api.rb:/usr/src/app/app/services/big_blue_button_api.rb:ro
+      - ./greenlight/config/services/recording_catalog_sync.rb:/usr/src/app/app/services/recording_catalog_sync.rb:ro
+      - ./greenlight/config/services/recording_creator.rb:/usr/src/app/app/services/recording_creator.rb:ro
+      - ./greenlight/custom/recordings_sync_worker.rb:/usr/src/app/custom/recordings_sync_worker.rb:ro
+    depends_on:
+      - greenlight-postgres
+      - greenlight-redis
+
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: moodle_nginx
+    restart: unless-stopped
+      #network_mode: host
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-site.conf:/etc/nginx/conf.d/default.conf
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./html:/var/www/html:ro
+      - moodledata_data:/var/moodledata:ro
+      - nginx_cache:/var/cache/nginx
+      - nginx_logs:/var/log/nginx:rw   
+      #greenlight
+      - ./greenlight/nginx/snippets:/etc/nginx/snippets:ro
+
+        #depends_on:
+      #- moodle
+      #- greenlight-v3
+
+
+volumes:
+  mariadb_data:
+    driver: local
+  redis_data:
+    driver: local
+  moodledata_data:
+    driver: local
+  greenlight_postgres_data:
+    driver: local
+  greenlight_redis_data:
+    driver: local
+  nginx_cache:
+    driver: local
+  nginx_logs:
+    driver: local
+
+# Optional: Add networks for better isolation
+networks:
+  default:
+    driver: bridge
+

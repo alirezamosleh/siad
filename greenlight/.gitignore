@@ -1,0 +1,45 @@
+# ── Secrets & Environment ──
+.env
+.env.*
+!.env.example
+
+# ── Docker Data Volumes (Postgres, Redis, storage, TLS) ──
+data/
+!data/.gitkeep
+
+# ── Let's Encrypt / TLS material (also under data/, keep explicit) ──
+*.pem
+*.key
+*.crt
+*.csr
+
+# ── OS / Editor Temp Files ──
+.~lock.*
+.~lock.*#
+*~
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.code-workspace
+
+# ── Sentry Native SDK cache ──
+.sentry-native/
+
+# ── Agent / tool caches ──
+.qwen/
+.cursor/
+
+# ── Logs ──
+*.log
+log/
+logs/
+
+# ── Build / runtime artifacts ──
+*.tmp
+*.pid
+*.bak
+*.orig
+node_modules/

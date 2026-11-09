@@ -1,0 +1,287 @@
+// BigBlueButton open source conferencing system - http://www.bigbluebutton.org/.
+//
+// Copyright (c) 2022 BigBlueButton Inc. and by respective authors (see below).
+//
+// This program is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License as published by the Free Software
+// Foundation; either version 3.0 of the License, or (at your option) any later
+// version.
+//
+// Greenlight is distributed in the hope that it will be useful, but WITHOUT ANY
+// WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+// PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License along
+// with Greenlight; if not, see <http://www.gnu.org/licenses/>.
+
+import {
+  VideoCameraIcon, TrashIcon, PencilSquareIcon, ClipboardDocumentIcon, QuestionMarkCircleIcon,
+} from '@heroicons/react/24/outline';
+import React, { useState } from 'react';
+import PropTypes from 'prop-types';
+import {
+  Button, Stack, Dropdown,
+} from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
+import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
+import Popover from 'react-bootstrap/Popover';
+import { useAuth } from '../../contexts/auth/AuthProvider';
+import Spinner from '../shared_components/utilities/Spinner';
+import UpdateRecordingForm from './forms/UpdateRecordingForm';
+import DeleteRecordingForm from './forms/DeleteRecordingForm';
+import Modal from '../shared_components/modals/Modal';
+import { localizeDateTimeString } from '../../helpers/DateTimeHelper';
+import useRedirectRecordingUrl from '../../hooks/mutations/recordings/useRedirectRecordingUrl';
+import SimpleSelect from '../shared_components/utilities/SimpleSelect';
+import CopyRecordingPopover from './CopyRecordingPopover';
+
+// TODO: Amir - Refactor this.
+export default function RecordingRow({
+  recording, visibilityMutation: useVisibilityAPI, deleteMutation: useDeleteAPI, adminTable, dropUp,
+}) {
+  const { t } = useTranslation();
+
+  const visibilityAPI = useVisibilityAPI();
+  const [isEditing, setIsEditing] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [display, setDisplay] = useState('invisible');
+  const [showCopyPopover, setShowCopyPopover] = useState(false);
+
+  const currentUser = useAuth();
+  const redirectRecordingUrl = useRedirectRecordingUrl();
+  const allowedVisibilities = JSON.parse(currentUser.permissions?.AccessToVisibilities);
+
+  const localizedTime = localizeDateTimeString(recording?.recorded_at, currentUser?.language);
+  const formats = recording.formats.sort(
+    (a, b) => (a.recording_type.toLowerCase() > b.recording_type.toLowerCase() ? 1 : -1),
+  );
+
+  const visibilityHelpText = {
+    'Public/Protected': t('recording.visibility_help.public_protected'),
+    Public: t('recording.visibility_help.public'),
+    Protected: t('recording.visibility_help.protected'),
+    Published: t('recording.visibility_help.published'),
+    Unpublished: t('recording.visibility_help.unpublished'),
+  };
+
+  const visibilityPopover = (visibilityKey) => (
+    <Popover className="ms-3">
+      <Popover.Body>
+        <p className="mb-0">{visibilityHelpText[visibilityKey]}</p>
+      </Popover.Body>
+    </Popover>
+  );
+
+  return (
+    <tr
+      key={recording.id}
+      className="align-middle text-muted border border-2"
+      onMouseEnter={() => setDisplay('visible')}
+      onMouseLeave={() => setDisplay('invisible')}
+    >
+      <td className="border-end-0 text-dark">
+        <Stack direction="horizontal" className="py-2">
+          <div className="recording-icon-circle rounded-circle me-3 d-flex justify-content-center">
+            <VideoCameraIcon className="hi-s text-brand" />
+          </div>
+          <Stack>
+            <strong>
+              {/* TODO: Samuel - add an x button or something to the edit name form */}
+              <UpdateRecordingForm
+                recordId={recording.record_id}
+                name={recording.name}
+                hidden={!isEditing || isUpdating}
+                setIsUpdating={setIsUpdating}
+                setIsEditing={setIsEditing}
+              />
+              {
+                !isEditing
+                && (
+                <>
+                  { recording.name }
+                  <PencilSquareIcon
+                    role="button"
+                    aria-hidden="true"
+                    onClick={() => !isUpdating && setIsEditing(true)}
+                    onBlur={() => setIsEditing(false)}
+                    className={`hi-s text-muted ms-1 mb-1 ${display}`}
+                  />
+                </>
+                )
+              }
+              {
+                isUpdating && <Spinner animation="grow" variant="brand" />
+              }
+            </strong>
+            <span className="small text-muted"> {localizedTime} </span>
+            {adminTable && <span className="small text-muted fw-bold"> {recording?.user_name} </span>}
+          </Stack>
+        </Stack>
+      </td>
+      <td className="border-0"> {t('recording.length_in_minutes', { recording })} </td>
+      <td className="border-0"> {recording.participants} </td>
+      <td className="border-0">
+        <SimpleSelect
+          defaultValue={recording.visibility}
+          dropUp={dropUp}
+        >
+          { recording.protectable && (allowedVisibilities.includes('Public/Protected') || recording.visibility === 'Public/Protected') && (
+            <Dropdown.Item
+              key="Public/Protected"
+              value="Public/Protected"
+              onClick={() => visibilityAPI.mutate({ visibility: 'Public/Protected', id: recording.record_id })}
+            >
+              <Stack direction="horizontal" className="justify-content-between">
+                <span>{t('recording.public_protected')}</span>
+                <span className="recording-info">
+                  <OverlayTrigger placement="right" trigger={['hover', 'focus']} overlay={visibilityPopover('Public/Protected')}>
+                    <QuestionMarkCircleIcon className="hi-xs" />
+                  </OverlayTrigger>
+                </span>
+              </Stack>
+            </Dropdown.Item>
+          )}
+
+          { (allowedVisibilities.includes('Public') || recording.visibility === 'Public') && (
+            <Dropdown.Item
+              key="Public"
+              value="Public"
+              onClick={() => visibilityAPI.mutate({ visibility: 'Public', id: recording.record_id })}
+            >
+              <Stack direction="horizontal" className="justify-content-between">
+                <span>{t('recording.public')}</span>
+                <span className="recording-info">
+                  <OverlayTrigger placement="right" trigger={['hover', 'focus']} overlay={visibilityPopover('Public')}>
+                    <QuestionMarkCircleIcon className="hi-xs" />
+                  </OverlayTrigger>
+                </span>
+              </Stack>
+            </Dropdown.Item>
+          )}
+
+          { recording.protectable && (allowedVisibilities.includes('Protected') || recording.visibility === 'Protected') && (
+            <Dropdown.Item
+              key="Protected"
+              value="Protected"
+              onClick={() => visibilityAPI.mutate({ visibility: 'Protected', id: recording.record_id })}
+            >
+              <Stack direction="horizontal" className="justify-content-between">
+                <span>{t('recording.protected')}</span>
+                <span className="recording-info">
+                  <OverlayTrigger placement="right" trigger={['hover', 'focus']} overlay={visibilityPopover('Protected')}>
+                    <QuestionMarkCircleIcon className="hi-xs" />
+                  </OverlayTrigger>
+                </span>
+              </Stack>
+            </Dropdown.Item>
+          )}
+
+          { (allowedVisibilities.includes('Published') || recording.visibility === 'Published') && (
+            <Dropdown.Item
+              key="Published"
+              value="Published"
+              onClick={() => visibilityAPI.mutate({ visibility: 'Published', id: recording.record_id })}
+            >
+              <Stack direction="horizontal" className="justify-content-between">
+                <span>{t('recording.published')}</span>
+                <span className="recording-info">
+                  <OverlayTrigger placement="right" trigger={['hover', 'focus']} overlay={visibilityPopover('Published')}>
+                    <QuestionMarkCircleIcon className="hi-xs" />
+                  </OverlayTrigger>
+                </span>
+              </Stack>
+            </Dropdown.Item>
+          )}
+
+          { (allowedVisibilities.includes('Unpublished') || recording.visibility === 'Unpublished') && (
+            <Dropdown.Item
+              key="Unpublished"
+              value="Unpublished"
+              onClick={() => visibilityAPI.mutate({ visibility: 'Unpublished', id: recording.record_id })}
+            >
+              <Stack direction="horizontal" className="justify-content-between">
+                <span>{t('recording.unpublished')}</span>
+                <span className="recording-info">
+                  <OverlayTrigger placement="right" trigger={['hover', 'focus']} overlay={visibilityPopover('Unpublished')}>
+                    <QuestionMarkCircleIcon className="hi-xs" />
+                  </OverlayTrigger>
+                </span>
+              </Stack>
+            </Dropdown.Item>
+          )}
+        </SimpleSelect>
+      </td>
+      <td className="border-0">
+        {recording?.visibility !== 'Unpublished' && formats.map((format) => (
+          <Button
+            onClick={() => redirectRecordingUrl.mutate({ record_id: recording.record_id, format: format.recording_type })}
+            className={`btn-sm rounded-pill me-1 mt-1 border-0 btn-format-${format.recording_type.toLowerCase()}`}
+            key={`${format.recording_type}-${format.url}`}
+          >
+            {format.recording_type}
+          </Button>
+        ))}
+      </td>
+      <td className="border-start-0">
+        <Stack direction="horizontal" className="float-end recordings-icons">
+          { recording?.visibility !== 'Unpublished' && (
+            <OverlayTrigger
+              trigger="click"
+              show={showCopyPopover}
+              onToggle={(show) => setShowCopyPopover(show)}
+              rootClose
+              overlay={(
+                <CopyRecordingPopover
+                  recording={recording}
+                  formats={formats}
+                  onCopied={() => setShowCopyPopover(false)}
+                />
+              )}
+            >
+              <Button variant="icon" className="mt-1 me-3" title={t('recording.copy_recording_urls')}>
+                <ClipboardDocumentIcon className="hi-s text-muted" />
+              </Button>
+            </OverlayTrigger>
+          )}
+          <Modal
+            modalButton={<Dropdown.Item className="btn btn-icon"><TrashIcon className="hi-s me-2" title={t('delete')} /></Dropdown.Item>}
+            body={(
+              <DeleteRecordingForm
+                mutation={useDeleteAPI}
+                recordId={recording.record_id}
+              />
+            )}
+          />
+        </Stack>
+      </td>
+    </tr>
+  );
+}
+
+RecordingRow.defaultProps = {
+  adminTable: false,
+  dropUp: false,
+};
+
+RecordingRow.propTypes = {
+  recording: PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    record_id: PropTypes.string.isRequired,
+    name: PropTypes.string.isRequired,
+    length: PropTypes.number.isRequired,
+    participants: PropTypes.number.isRequired,
+    formats: PropTypes.arrayOf(PropTypes.shape({
+      url: PropTypes.string.isRequired,
+      recording_type: PropTypes.string.isRequired,
+    })),
+    visibility: PropTypes.string.isRequired,
+    protectable: PropTypes.bool,
+    recorded_at: PropTypes.string.isRequired,
+    map: PropTypes.func,
+    user_name: PropTypes.string,
+  }).isRequired,
+  visibilityMutation: PropTypes.func.isRequired,
+  deleteMutation: PropTypes.func.isRequired,
+  adminTable: PropTypes.bool,
+  dropUp: PropTypes.bool,
+};

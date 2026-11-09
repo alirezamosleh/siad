@@ -1,0 +1,7 @@
+FROM bitnami/moodle:4.5
+USER root
+# Remove the original entrypoint that starts Apache
+RUN rm -f /opt/bitnami/scripts/moodle/entrypoint.sh
+USER 1001
+ENTRYPOINT []
+CMD ["/bin/sh", "-c", "while true; do php /bitnami/moodle/admin/cli/cron.php; sleep 90; done"]

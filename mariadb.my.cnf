@@ -1,0 +1,44 @@
+[mysqld]
+# InnoDB Buffer Pool - مهم‌ترین پارامتر
+# ~50% RAM برای DB server اختصاصی، اینجا 8GB کافیه
+innodb_buffer_pool_size = 8G
+innodb_buffer_pool_instances = 8
+
+innodb_log_file_size = 512M
+innodb_log_buffer_size = 64M
+innodb_flush_log_at_trx_commit = 2   # کمی خطر در crash، خیلی سریع‌تر
+innodb_flush_method = O_DIRECT
+innodb_io_capacity = 2000
+innodb_io_capacity_max = 4000
+innodb_read_io_threads = 8
+innodb_write_io_threads = 8
+
+# Query Cache (MariaDB)
+query_cache_type = 0             # Moodle با Redis cache می‌کنه، این off باشه
+query_cache_size = 0
+
+# Connections
+max_connections = 300
+max_connect_errors = 10000
+wait_timeout = 28800
+interactive_timeout = 28800
+
+# Thread
+thread_cache_size = 50
+thread_stack = 256K
+
+# Temp tables
+tmp_table_size = 256M
+max_heap_table_size = 256M
+
+# Slow query log
+slow_query_log = 1
+slow_query_log_file = /opt/bitnami/mariadb/logs/slow.log
+long_query_time = 2
+
+# Character set
+character_set_server = utf8mb4
+collation_server = utf8mb4_unicode_ci
+
+[client]
+default-character-set = utf8mb4
