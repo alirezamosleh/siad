@@ -209,16 +209,16 @@ export default class MediaEmbed {
         const moodleLangs = getMoodleLang(this.editor);
         const currentLanguage = getCurrentLanguage(this.editor);
 
-        const installed = Object.entries(moodleLangs.installed).map(([lang, code]) => ({
+        const installed = Object.entries(moodleLangs.installed).map(([code, lang]) => ({
             lang,
             code,
-            "default": lang === currentLanguage,
+            "default": code === currentLanguage,
         }));
 
-        const available = Object.entries(moodleLangs.available).map(([lang, code]) => ({
+        const available = Object.entries(moodleLangs.available).map(([code, lang]) => ({
             lang,
             code,
-            "default": lang === currentLanguage,
+            "default": code === currentLanguage,
         }));
 
         return {
@@ -342,14 +342,18 @@ export default class MediaEmbed {
     }
 
     getContextForMediaHTML(tab) {
-        const tracks = Array.from(tab.querySelectorAll(Selectors.EMBED.elements.track)).map(track => ({
-            track: track.querySelector(Selectors.EMBED.elements.trackSource + ' ' + Selectors.EMBED.elements.url).value,
-            kind: this.getTrackTypeFromTabPane(track.closest('.tab-pane')),
-            label: track.querySelector(Selectors.EMBED.elements.trackLabel).value ||
-                track.querySelector(Selectors.EMBED.elements.trackLang).value,
-            srclang: track.querySelector(Selectors.EMBED.elements.trackLang).value,
-            defaultTrack: track.querySelector(Selectors.EMBED.elements.trackDefault).checked ? "true" : null
-        })).filter((track) => !!track.track);
+        const tracks = Array.from(tab.querySelectorAll(Selectors.EMBED.elements.track)).map(track => {
+            const langTrack = track.querySelector(Selectors.EMBED.elements.trackLang);
+            const selectedLangTrack = langTrack.options[langTrack.selectedIndex];
+
+            return {
+                track: track.querySelector(Selectors.EMBED.elements.trackSource + ' ' + Selectors.EMBED.elements.url).value,
+                kind: this.getTrackTypeFromTabPane(track.closest('.tab-pane')),
+                label: track.querySelector(Selectors.EMBED.elements.trackLabel).value || langTrack.value,
+                srclang: selectedLangTrack.dataset.languageCode ?? false,
+                defaultTrack: track.querySelector(Selectors.EMBED.elements.trackDefault).checked ? "true" : null,
+            };
+        }).filter((track) => !!track.track);
 
         const sources = Array.from(tab.querySelectorAll(Selectors.EMBED.elements.mediaSource + ' '
             + Selectors.EMBED.elements.url))
@@ -459,7 +463,15 @@ export default class MediaEmbed {
             root.querySelectorAll(Selectors.EMBED.elements.trackLang).forEach((dropdown) => {
                 const defaultVal = dropdown.getAttribute('data-value');
                 if (defaultVal) {
-                    dropdown.value = defaultVal;
+                    Array.from(dropdown.options).some(option => {
+                        // Check if srclang in track is a language code like "en"
+                        // or language name like "English" prior to MDL-85159.
+                        if (option.dataset.languageCode === defaultVal || option.value === defaultVal) {
+                            option.selected = true;
+                            return true;
+                        }
+                        return false;
+                    });
                 }
             });
         });

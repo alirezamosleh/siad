@@ -21,7 +21,7 @@ Feature: A teacher or admin can view subscriptions tab
     When I navigate to "Subscriptions" in current page administration
     Then I should see "View subscribers" in the "//div[@class='urlselect']//option[@selected]" "xpath_element"
     And I should see "Subscribers"
-    And I should see "There are no subscribers yet for this forum"
+    And I should see "There are no subscribers yet for this forum."
 
   Scenario: A teacher selects forced subscription and subscribers selector is not visible
     Given I am on the "Test forum name" "forum activity" page logged in as teacher
@@ -36,6 +36,7 @@ Feature: A teacher or admin can view subscriptions tab
     And I should see "Everyone can now choose to be subscribed"
     And I should see "View subscribers"
 
+  @accessibility
   Scenario: A teacher selects forced subscription and subscribers selector is not visible
     Given I am on the "Test forum name" "forum activity" page logged in as teacher
     And I navigate to "Subscriptions" in current page administration
@@ -46,10 +47,11 @@ Feature: A teacher or admin can view subscriptions tab
     And I should not see "Forced subscription"
     And I should not see "Auto subscription"
     And I should not see "Subscription disabled"
+    And the "region-main" "region" should meet accessibility standards with "best-practice" extra tests
 
   Scenario: A teacher selects reports tab and verify the heading
     Given I am on the "Test forum name" "forum activity" page logged in as teacher
-    And I should see "There are no discussion topics yet in this forum" in the "//div[contains(@class, 'alert-info')]" "xpath_element"
+    And I should see "There are no discussion topics yet in this forum." in the "//div[contains(@class, 'alert-info')]" "xpath_element"
     And I navigate to "Reports" in current page administration
     And I should see "Forum summary report"
     And I should see "Nothing to display" in the "//div[contains(@class, 'alert-info')]" "xpath_element"

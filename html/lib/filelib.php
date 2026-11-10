@@ -791,7 +791,7 @@ function file_get_drafarea_files($draftitemid, $filepath = '/') {
             }
             // find the file this draft file was created from and count all references in local
             // system pointing to that file
-            $source = @unserialize($file->get_source() ?? '');
+            $source = unserialize_object($file->get_source() ?? '');
             if (isset($source->original)) {
                 $item->refcount = $fs->search_references_count($source->original);
             }
@@ -911,9 +911,9 @@ function file_get_submitted_draft_itemid($elname) {
  * @return stored_file
  */
 function file_restore_source_field_from_draft_file($storedfile) {
-    $source = @unserialize($storedfile->get_source() ?? '');
-    if (!empty($source)) {
-        if (is_object($source)) {
+    if (!empty($storedfile->get_source())) {
+        $source = unserialize_object($storedfile->get_source());
+        if (isset($source->source)) {
             $restoredsource = $source->source;
             $storedfile->set_source($restoredsource);
         } else {
@@ -1205,7 +1205,7 @@ function file_save_draft_area_files($draftitemid, $contextid, $component, $filea
             // Let's check if we can update this file or we need to delete and create.
             if ($newfile->is_directory()) {
                 // Directories are always ok to just update.
-            } else if (($source = @unserialize($newfile->get_source() ?? '')) && isset($source->original)) {
+            } else if (($source = unserialize_object($newfile->get_source() ?? '')) && isset($source->original)) {
                 // File has the 'original' - we need to update the file (it may even have not been changed at all).
                 $original = file_storage::unpack_reference($source->original);
                 if ($original['filename'] !== $oldfile->get_filename() || $original['filepath'] !== $oldfile->get_filepath()) {
@@ -1241,8 +1241,10 @@ function file_save_draft_area_files($draftitemid, $contextid, $component, $filea
             // Field files.source for draftarea files contains serialised object with source and original information.
             // We only store the source part of it for non-draft file area.
             $newsource = $newfile->get_source();
-            if ($source = @unserialize($newfile->get_source() ?? '')) {
-                $newsource = $source->source;
+            if ($source = unserialize_object($newfile->get_source() ?? '')) {
+                if (isset($source->source)) {
+                    $newsource = $source->source;
+                }
             }
             if ($oldfile->get_source() !== $newsource) {
                 $oldfile->set_source($newsource);
@@ -1275,10 +1277,12 @@ function file_save_draft_area_files($draftitemid, $contextid, $component, $filea
         // the size and subdirectory tests are extra safety only, the UI should prevent it
         foreach ($newhashes as $file) {
             $file_record = array('contextid'=>$contextid, 'component'=>$component, 'filearea'=>$filearea, 'itemid'=>$itemid, 'timemodified'=>time());
-            if ($source = @unserialize($file->get_source() ?? '')) {
+            if ($source = unserialize_object($file->get_source() ?? '')) {
                 // Field files.source for draftarea files contains serialised object with source and original information.
                 // We only store the source part of it for non-draft file area.
-                $file_record['source'] = $source->source;
+                if (isset($source->source)) {
+                    $file_record['source'] = $source->source;
+                }
             }
 
             if ($file->is_external_file()) {
@@ -2226,10 +2230,11 @@ function readfile_accel($file, $mimetype, $accelerate) {
         header('Content-Type: '.$mimetype);
     }
 
-    $lastmodified = is_object($file) ? $file->get_timemodified() : filemtime($file);
+    $isfileobj = is_object($file);
+    $lastmodified = $isfileobj ? $file->get_timemodified() : filemtime($file);
     header('Last-Modified: '. gmdate('D, d M Y H:i:s', $lastmodified) .' GMT');
 
-    if (is_object($file)) {
+    if ($isfileobj) {
         header('Etag: "' . $file->get_contenthash() . '"');
         if (isset($_SERVER['HTTP_IF_NONE_MATCH']) and trim($_SERVER['HTTP_IF_NONE_MATCH'], '"') === $file->get_contenthash()) {
             header('HTTP/1.1 304 Not Modified');
@@ -2238,7 +2243,7 @@ function readfile_accel($file, $mimetype, $accelerate) {
     }
 
     // if etag present for stored file rely on it exclusively
-    if (!empty($_SERVER['HTTP_IF_MODIFIED_SINCE']) and (empty($_SERVER['HTTP_IF_NONE_MATCH']) or !is_object($file))) {
+    if (!empty($_SERVER['HTTP_IF_MODIFIED_SINCE']) && (empty($_SERVER['HTTP_IF_NONE_MATCH']) || !$isfileobj)) {
         // get unixtime of request header; clip extra junk off first
         $since = strtotime(preg_replace('/;.*$/', '', $_SERVER["HTTP_IF_MODIFIED_SINCE"]));
         if ($since && $since >= $lastmodified) {
@@ -2254,7 +2259,7 @@ function readfile_accel($file, $mimetype, $accelerate) {
     }
 
     if ($accelerate) {
-        if (is_object($file)) {
+        if ($isfileobj) {
             $fs = get_file_storage();
             if ($fs->supports_xsendfile()) {
                 if ($fs->xsendfile_file($file)) {
@@ -2271,7 +2276,8 @@ function readfile_accel($file, $mimetype, $accelerate) {
         }
     }
 
-    $filesize = is_object($file) ? $file->get_filesize() : filesize($file);
+    $filesize = $isfileobj ? $file->get_filesize() : filesize($file);
+    $filename = $isfileobj ? $file->get_filename() : $file;
 
     header('Last-Modified: '. gmdate('D, d M Y H:i:s', $lastmodified) .' GMT');
 
@@ -2305,10 +2311,10 @@ function readfile_accel($file, $mimetype, $accelerate) {
                 $ranges = false;
             }
             if ($ranges) {
-                if (is_object($file)) {
+                if ($isfileobj) {
                     $handle = $file->get_content_file_handle();
                     if ($handle === false) {
-                        throw new file_exception('storedfilecannotreadfile', $file->get_filename());
+                        throw new file_exception('storedfilecannotreadfile', $filename);
                     }
                 } else {
                     $handle = fopen($file, 'rb');
@@ -2334,7 +2340,12 @@ function readfile_accel($file, $mimetype, $accelerate) {
             // We do not expect any content in the buffer when we are serving files.
             $buffercontents = ob_get_clean();
             if ($buffercontents !== '') {
-                error_log('Non-empty default output handler buffer detected while serving the file ' . $file);
+                // Include a preview of the first 20 characters of the output buffer to help identify
+                // what's causing it to be non-empty. This is useful for diagnosing unexpected output
+                // without exposing full content.
+                $buffercontentspreview = substr($buffercontents, 0, 20);
+                debugging("Non-empty default output handler buffer detected while serving the file {$filename}. " .
+                    "Buffer contents (first 20 characters): {$buffercontentspreview}", DEBUG_DEVELOPER);
             }
         } else {
             // Some handlers such as zlib output compression may have file signature buffered - flush it.
@@ -2343,7 +2354,7 @@ function readfile_accel($file, $mimetype, $accelerate) {
     }
 
     // send the whole file content
-    if (is_object($file)) {
+    if ($isfileobj) {
         $file->readfile();
     } else {
         if (readfile_allow_large($file, $filesize) === false) {
@@ -2609,8 +2620,8 @@ function send_file($path, $filename, $lifetime = null , $filter=0, $pathisstring
             header('Cache-Control: private, max-age=10, no-transform');
             header('Expires: '. gmdate('D, d M Y H:i:s', 0) .' GMT');
             header('Pragma: ');
-        } else { //normal http - prevent caching at all cost
-            header('Cache-Control: private, must-revalidate, pre-check=0, post-check=0, max-age=0, no-transform');
+        } else { // Normal http - prevent caching at all cost.
+            header('Cache-Control: private, must-revalidate, pre-check=0, post-check=0, max-age=0, no-transform', 'no-store');
             header('Expires: '. gmdate('D, d M Y H:i:s', 0) .' GMT');
             header('Pragma: no-cache');
         }
@@ -2629,7 +2640,8 @@ function send_file($path, $filename, $lifetime = null , $filter=0, $pathisstring
         if ($mimetype == 'text/html' || $mimetype == 'application/xhtml+xml' || file_is_svg_image_from_mimetype($mimetype)) {
             $options = new stdClass();
             $options->noclean = true;
-            $options->nocache = true; // temporary workaround for MDL-5136
+            $options->context = context_course::instance($COURSE->id);
+
             if (is_object($path)) {
                 $text = $path->get_content();
             } else if ($pathisstring) {
@@ -2637,15 +2649,16 @@ function send_file($path, $filename, $lifetime = null , $filter=0, $pathisstring
             } else {
                 $text = implode('', file($path));
             }
-            $output = format_text($text, FORMAT_HTML, $options, $COURSE->id);
 
+            $output = format_text($text, FORMAT_HTML, $options);
             readstring_accel($output, $mimetype);
-
         } else if (($mimetype == 'text/plain') and ($filter == 1)) {
             // only filter text if filter all files is selected
             $options = new stdClass();
             $options->newlines = false;
             $options->noclean = true;
+            $options->context = context_course::instance($COURSE->id);
+
             if (is_object($path)) {
                 $text = htmlentities($path->get_content(), ENT_QUOTES, 'UTF-8');
             } else if ($pathisstring) {
@@ -2653,10 +2666,9 @@ function send_file($path, $filename, $lifetime = null , $filter=0, $pathisstring
             } else {
                 $text = htmlentities(implode('', file($path)), ENT_QUOTES, 'UTF-8');
             }
-            $output = '<pre>'. format_text($text, FORMAT_MOODLE, $options, $COURSE->id) .'</pre>';
 
+            $output = '<pre>'. format_text($text, FORMAT_MOODLE, $options) .'</pre>';
             readstring_accel($output, $mimetype);
-
         } else {
             // send the contents
             if ($pathisstring) {
@@ -2933,7 +2945,7 @@ function file_overwrite_existing_draftfile(stored_file $newfile, stored_file $ex
 
     $fs = get_file_storage();
     // Remember original file source field.
-    $source = @unserialize($existingfile->get_source() ?? '');
+    $source = unserialize_object($existingfile->get_source() ?? '');
     // Remember the original sortorder.
     $sortorder = $existingfile->get_sortorder();
     if ($newfile->is_external_file()) {
@@ -2957,7 +2969,7 @@ function file_overwrite_existing_draftfile(stored_file $newfile, stored_file $ex
     $newfile = $fs->create_file_from_storedfile($newfilerecord, $newfile);
     // Preserve original file location (stored in source field) for handling references.
     if (isset($source->original)) {
-        if (!($newfilesource = @unserialize($newfile->get_source() ?? ''))) {
+        if (!($newfilesource = unserialize_object($newfile->get_source() ?? ''))) {
             $newfilesource = new stdClass();
         }
         $newfilesource->original = $source->original;
@@ -3168,6 +3180,8 @@ class curl {
     private $ignoresecurity;
     /** @var array $mockresponses For unit testing only - return the head of this list instead of making the next request. */
     private static $mockresponses = [];
+    /** @var array $curlresolveinfo Resolve addresses for the URL that have passed cuRL security checks, in a CURLOPT_RESOLVE compatible format. */
+    private $curlresolveinfo = [];
     /** @var array temporary params value if the value is not belongs to class stored_file. */
     public $_tmp_file_post_params = [];
 
@@ -3765,6 +3779,9 @@ class curl {
             return $this->error;
         }
 
+        // Set allowed resolve info if the URL is not blocked.
+        $this->curlresolveinfo = $this->securityhelper->get_resolve_info();
+
         return null;
     }
 
@@ -3800,6 +3817,10 @@ class curl {
 
         // Set the URL as a curl option.
         $this->setopt(array('CURLOPT_URL' => $url));
+
+        // Force cURL to only resolve the URL from IP/port combinations that were validated by the security helper.
+        // This prevents re-fetching DNS data on subsequent requests, which could return un-validated hosts/ports.
+        $this->setopt(['CURLOPT_RESOLVE' => $this->curlresolveinfo]);
 
         // Create curl instance.
         $curl = curl_init();
@@ -3911,6 +3932,10 @@ class curl {
                 }
 
                 curl_setopt($curl, CURLOPT_URL, $redirecturl);
+
+                // Force cURL to only resolve the URL from IP/port combinations that were validated by the security helper.
+                // This prevents re-fetching DNS data on subsequent requests, which could return un-validated hosts/ports.
+                $this->setopt(['CURLOPT_RESOLVE' => $this->curlresolveinfo]);
 
                 // If CURLOPT_UNRESTRICTED_AUTH is empty/false, don't send credentials to other hosts.
                 // Ref: https://curl.se/libcurl/c/CURLOPT_UNRESTRICTED_AUTH.html.
@@ -4348,7 +4373,7 @@ class curl_cache {
                 $fp = fopen($this->dir.$filename, 'r');
                 $size = filesize($this->dir.$filename);
                 $content = fread($fp, $size);
-                return unserialize($content);
+                return unserialize_array($content);
             }
         }
         return false;

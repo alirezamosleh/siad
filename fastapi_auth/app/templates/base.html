@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+{# 
+  قالب پایه صفحات احراز هویت (Base Authentication Layout).
+  - چیدمان کاملاً واکنش‌گرا (Responsive) و بهینه‌سازی‌شده برای دسکتاپ و موبایل.
+  - پشتیبانی کامل از استاندارد زبان فارسی (fa) و چیدمان راست‌چین (RTL).
+#}
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    {# فایل استایل‌های اختصاصی راست‌چین، تم مدرن و فونت‌های فارسی #}
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            {# هدر کارت ورود شامل لوگوی دانشگاهی و عناوین #}
+            <header class="auth-header">
+                <div class="auth-logo">
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+                        <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+                    </svg>
+                </div>
+                <h1 class="auth-title">{% block page_title %}{{ app_name }}{% endblock %}</h1>
+                <p class="auth-subtitle">{% block page_subtitle %}سامانه یکپارچه آموزش و یادگیری{% endblock %}</p>
+            </header>
+
+            {# کادر داینامیک نمایش خطاهای جاوااسکریپتی یا هشدارهای تایید #}
+            <div id="alert-box" class="alert hidden" role="alert"></div>
+
+            {# بخش محتوای متغیر صفحات فرعی (مانند فرم ورود، بازیابی رمز و غیره) #}
+            {% block content %}{% endblock %}
+            
+            {# فوتر کارت ورود #}
+            <footer class="auth-footer">
+                <p>&copy; تمام حقوق برای سامانه مدیریت یادگیری محفوظ است.</p>
+            </footer>
+        </div>
+    </div>
+
+    {# اسکریپت اصلی مدیریت احراز هویت ناهمگام و تعاملات فرم #}
+    <script src="/static/js/auth.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

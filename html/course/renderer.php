@@ -1160,7 +1160,14 @@ class core_course_renderer extends plugin_renderer_base {
             // This is a request for the course information.
             $courseid = required_param('courseid', PARAM_INT);
 
-            $course = $DB->get_record('course', array('id' => $courseid), '*', MUST_EXIST);
+            $course = $DB->get_record('course', ['id' => $courseid], '*', IGNORE_MISSING);
+            if ($course === false) {
+                throw new \moodle_exception('invalidcourseid');
+            }
+            $coursecontext = context_course::instance($course->id, MUST_EXIST);
+            if ($course->visible == 0 && !has_capability('moodle/course:viewhiddencourses', $coursecontext)) {
+                throw new \moodle_exception('invalidcourseid');
+            }
 
             $chelper = new coursecat_helper();
             $chelper->set_show_courses(self::COURSECAT_SHOW_COURSES_EXPANDED);
@@ -1655,12 +1662,14 @@ class core_course_renderer extends plugin_renderer_base {
         if (strval($contents) === '') {
             return '';
         }
-        $output = html_writer::link('#' . $skipdivid,
+        $output = html_writer::link(
+            '#' . $skipdivid,
             get_string('skipa', 'access', core_text::strtolower(strip_tags($header))),
-            array('class' => 'skip-block skip aabtn'));
+            ['class' => 'skip-block skip aabtn']
+        );
 
         // Wrap frontpage part in div container.
-        $output .= html_writer::start_tag('div', array('id' => $contentsdivid));
+        $output .= html_writer::start_tag('div', ['id' => $contentsdivid]);
         $output .= $this->heading($header);
 
         $output .= $contents;
@@ -1668,7 +1677,7 @@ class core_course_renderer extends plugin_renderer_base {
         // End frontpage part div container.
         $output .= html_writer::end_tag('div');
 
-        $output .= html_writer::tag('span', '', array('class' => 'skip-block-to', 'id' => $skipdivid));
+        $output .= html_writer::tag('span', '', ['class' => 'skip-block-to', 'id' => $skipdivid, 'tabindex' => -1]);
         return $output;
     }
 

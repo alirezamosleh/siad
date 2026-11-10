@@ -744,6 +744,11 @@ function course_delete_module($cmid, $async = false) {
         }
     }
 
+    if (empty($cm->instance)) {
+        throw new moodle_exception('cannotdeletemodulemissinginstance', '', '', null,
+            "Cannot delete course module with ID $cm->id because it does not have a valid activity instance.");
+    }
+
     // Call the delete_instance function, if it returns false throw an exception.
     if (!$deleteinstancefunction($cm->instance)) {
         throw new moodle_exception('cannotdeletemoduleinstance', '', '', null,
@@ -1369,7 +1374,7 @@ function course_get_cm_edit_actions(cm_info $mod, $indent = -1, $sr = null) {
         $str->groupmode = get_string('groupmode', 'group');
     }
 
-    $baseurl = new moodle_url('/course/mod.php', array('sesskey' => sesskey()));
+    $baseurl = new moodle_url('/course/mod.php');
 
     if ($sr !== null) {
         $baseurl->param('sr', $sr);
@@ -1424,7 +1429,7 @@ function course_get_cm_edit_actions(cm_info $mod, $indent = -1, $sr = null) {
             $enabledclass = '';
         }
         $actions['moveright'] = new action_menu_link_secondary(
-            new moodle_url($baseurl, ['id' => $mod->id, 'indent' => '1']),
+            new moodle_url($baseurl, ['id' => $mod->id, 'indent' => '1', 'sesskey' => sesskey()]),
             new pix_icon($rightarrow, '', 'moodle', ['class' => 'iconsmall']),
             $str->moveright,
             [
@@ -1472,7 +1477,7 @@ function course_get_cm_edit_actions(cm_info $mod, $indent = -1, $sr = null) {
             plugin_supports('mod', $mod->modname, FEATURE_BACKUP_MOODLE2) &&
             course_allowed_module($mod->get_course(), $mod->modname)) {
         $actions['duplicate'] = new action_menu_link_secondary(
-            new moodle_url($baseurl, ['duplicate' => $mod->id]),
+            new moodle_url($baseurl, ['duplicate' => $mod->id, 'sesskey' => sesskey()]),
             new pix_icon('t/copy', '', 'moodle', array('class' => 'iconsmall')),
             $str->duplicate,
             [
@@ -1696,7 +1701,7 @@ function move_courses($courseids, $categoryid) {
  * @see core_courseformat\base::get_section_name()
  *
  * @param int|stdClass $courseorid The course to get the section name for (object or just course id)
- * @param int|stdClass $section Section object from database or just field course_sections.section
+ * @param int|stdClass|section_info $section Section object from database or just field course_sections.section
  * @return string Display name that the course format prefers, e.g. "Week 2"
  */
 function get_section_name($courseorid, $section) {
@@ -3718,14 +3723,14 @@ function course_get_user_navigation_options($context, $course = null) {
  * This function also handles the frontpage settings.
  *
  * @param  stdClass $course  course object (for frontpage it should be a clone of $SITE)
- * @param  stdClass $context context object (course context)
+ * @param  context_course $context context object (course context)
  * @return stdClass          the administration options in a course and their availability status
  * @since  Moodle 3.2
  */
 function course_get_user_administration_options($course, $context) {
     global $CFG;
+
     $isfrontpage = $course->id == SITEID;
-    $completionenabled = $CFG->enablecompletion && $course->enablecompletion;
     $hascompletionoptions = count(core_completion\manager::get_available_completion_options($course->id)) > 0;
     $options = new stdClass;
     $options->update = has_capability('moodle/course:update', $context);
@@ -3740,7 +3745,7 @@ function course_get_user_administration_options($course, $context) {
     $options->files = ($course->legacyfiles == 2 && has_capability('moodle/course:managefiles', $context));
 
     if (!$isfrontpage) {
-        $options->tags = has_capability('moodle/course:tag', $context);
+        $options->tags = core_tag_tag::is_enabled('core', 'course') && has_capability('moodle/course:tag', $context);
         $options->gradebook = has_capability('moodle/grade:manage', $context);
         $options->outcomes = !empty($CFG->enableoutcomes) && has_capability('moodle/course:update', $context);
         $options->badges = !empty($CFG->enablebadges);

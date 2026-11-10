@@ -419,46 +419,17 @@ class roles {
      *
      * @return void
      */
-public static function participant_joined(string $meetingid, bool $ismoderator): void {
-    $cache = cache::make_from_params(cache_store::MODE_APPLICATION, 'mod_bigbluebuttonbn', 'meetings_cache');
-    $result = $cache->get($meetingid);
-    
-    // Decode JSON as object (explicitly set false for second parameter)
-    $meetinginfo = json_decode($result['meeting_info'], false);
-    
-    // Fallback: if it's still an array, convert to object
-    if (is_array($meetinginfo)) {
-        $meetinginfo = (object) $meetinginfo;
+    public static function participant_joined(string $meetingid, bool $ismoderator): void {
+        $cache = cache::make_from_params(cache_store::MODE_APPLICATION, 'mod_bigbluebuttonbn', 'meetings_cache');
+        $result = $cache->get($meetingid);
+        $meetinginfo = json_decode($result['meeting_info']);
+        $meetinginfo->participantCount += 1;
+        if ($ismoderator) {
+            $meetinginfo->moderatorCount += 1;
+        }
+        $cache->set($meetingid, ['creation_time' => $result['creation_time'],
+            'meeting_info' => json_encode($meetinginfo)]);
     }
-    
-    // Handle null case (invalid JSON)
-    if ($meetinginfo === null) {
-        debugging('Invalid JSON in meeting_info for meeting: ' . $meetingid, DEBUG_DEVELOPER);
-        return;
-    }
-    
-    // Initialize properties if they don't exist
-    if (!isset($meetinginfo->participantCount)) {
-        $meetinginfo->participantCount = 0;
-    }
-    if (!isset($meetinginfo->moderatorCount)) {
-        $meetinginfo->moderatorCount = 0;
-    }
-    
-    // Increment counts
-    $meetinginfo->participantCount += 1;
-    if ($ismoderator) {
-        $meetinginfo->moderatorCount += 1;
-    }
-    
-    // Save back to cache
-    $cache->set($meetingid, [
-        'creation_time' => $result['creation_time'],
-        'meeting_info' => json_encode($meetinginfo)
-    ]);
-}
-
-
 
     /**
      * Helper function returns a list of courses a user has access to, wrapped in an array that can be used

@@ -571,9 +571,9 @@ trait behat_session_trait {
      * @throws ExpectationException
      * @param string $locator
      * @param string $selectortype
-     * @return void
+     * @param NodeElement $container Restrict the search to just children of the specified container
      */
-    protected function ensure_element_exists($locator, $selectortype) {
+    protected function ensure_element_exists($locator, $selectortype, $container = false) {
         // Exception if it timesout and the element is still there.
         $msg = "The '{$locator}' element does not exist and should";
         $exception = new ExpectationException($msg, $this->getSession());
@@ -583,7 +583,7 @@ trait behat_session_trait {
             'selector' => $selector,
             'locator' => $locator,
             'container' => $container,
-        ] = $this->normalise_selector($selectortype, $locator, $this->getSession()->getPage());
+        ] = $this->normalise_selector($selectortype, $locator, $container ?: $this->getSession()->getPage());
 
         // It will stop spinning once the find() method returns true.
         $this->spin(
@@ -606,9 +606,9 @@ trait behat_session_trait {
      * @throws ExpectationException
      * @param string $locator
      * @param string $selectortype
-     * @return void
+     * @param NodeElement $container Restrict the search to just children of the specified container
      */
-    protected function ensure_element_does_not_exist($locator, $selectortype) {
+    protected function ensure_element_does_not_exist($locator, $selectortype, $container = false) {
         // Exception if it timesout and the element is still there.
         $msg = "The '{$locator}' element exists and should not exist";
         $exception = new ExpectationException($msg, $this->getSession());
@@ -618,7 +618,7 @@ trait behat_session_trait {
             'selector' => $selector,
             'locator' => $locator,
             'container' => $container,
-        ] = $this->normalise_selector($selectortype, $locator, $this->getSession()->getPage());
+        ] = $this->normalise_selector($selectortype, $locator, $container ?: $this->getSession()->getPage());
 
         // It will stop spinning once the find() method returns false.
         $this->spin(
@@ -1109,19 +1109,37 @@ EOF;
     /**
      * Helper function to execute api in a given context.
      *
-     * @param string $contextapi context in which api is defined.
+     * Note: The contextapi does not support a callback.
+     *
+     * @param string|array $contextapi context in which api is defined.
      * @param array|mixed $params list of params to pass or a single parameter
      * @throws Exception
+     * @throws DriverException
      */
-    protected function execute($contextapi, $params = array()) {
+    protected function execute(
+        string|array $contextapi,
+        mixed $params = [],
+    ): void {
         if (!is_array($params)) {
-            $params = array($params);
+            $params = [$params];
+        }
+
+        if (is_string($contextapi)) {
+            $contextapi = explode('::', $contextapi);
+        }
+
+        if (count($contextapi) !== 2) {
+            throw new DriverException('Invalid contextapi format, expected "context::api" or ["context", "api"]');
         }
 
         // Get required context and execute the api.
-        $contextapi = explode("::", $contextapi);
-        $context = behat_context_helper::get($contextapi[0]);
-        call_user_func_array(array($context, $contextapi[1]), $params);
+        [$classname, $method] = $contextapi;
+        if (!is_string($classname) || !is_string($method)) {
+            throw new DriverException('Invalid contextapi format, expected "context::api" or ["context", "api"]');
+        }
+
+        $context = behat_context_helper::get($classname);
+        call_user_func_array([$context, $method], $params);
 
         // NOTE: Wait for pending js and look for exception are not optional, as this might lead to unexpected results.
         // Don't make them optional for performance reasons.

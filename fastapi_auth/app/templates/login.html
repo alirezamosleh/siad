@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{# 
+  صفحه ورود یکپارچه سامانه آموزش و یادگیری (Unified Login Page).
+  
+  این قالب به دو صورت رندر می‌شود:
+    ۱. حالت مستقیم (Direct Mode): کاربر مستقیماً به http://localhost:8016 مراجعه کرده است.
+       پس از تایید هویت، بلیت امن SSO تولید شده و به auth/sadaa/sso.php منتقل می‌شود.
+    ۲. حالت پروتکل استاندارد OAuth 2.0 (OAuth Mode): کاربر از صفحه ورود مودل به این صفحه هدایت شده است.
+       پس از تایید هویت، کد مجوز (Authorization Code) به redirect_uri بازگردانده می‌شود.
+#}
+
+{% block title %}ورود به سامانه{% endblock %}
+{% block page_title %}ورود به سامانه آموزشی{% endblock %}
+{% block page_subtitle %}لطفاً جهت دسترسی به کلاس‌ها و دوره‌ها وارد شوید{% endblock %}
+
+{% block content %}
+{# کادر نمایش خطاهای سمت سرور #}
+{% if error_message %}
+<div class="alert alert-error" role="alert">
+    {{ error_message }}
+</div>
+{% endif %}
+
+{# بخش اتصال به پنجره ملی خدمات دولت هوشمند (USW / MSRT) در صورت فعال بودن #}
+{% if usw_enabled %}
+<div class="usw-section">
+    <a href="/auth/usw/login{% if oauth_mode %}?oauth_mode=1&client_id={{ client_id }}&redirect_uri={{ redirect_uri }}&state={{ state }}{% elif wantsurl %}?wantsurl={{ wantsurl }}{% endif %}" class="btn btn-usw">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <span>ورود از طریق پنجره واحد دولت من (USW)</span>
+    </a>
+</div>
+
+<div class="divider">
+    <span>یا ورود مستقیم</span>
+</div>
+{% endif %}
+
+{# منوی تب‌ها جهت انتخاب روش ورود: رمز عبور یا کد یکبار مصرف پیامکی #}
+<div class="auth-tabs" role="tablist">
+    <button type="button" class="auth-tab-btn active" id="tab-password-btn" data-target="password-panel" role="tab" aria-selected="true">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <span>ورود با رمز عبور</span>
+    </button>
+    <button type="button" class="auth-tab-btn" id="tab-otp-btn" data-target="otp-panel" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+            <line x1="12" y1="18" x2="12.01" y2="18"/>
+        </svg>
+        <span>ورود با کد یکبار مصرف (پیامک)</span>
+    </button>
+</div>
+
+{# تب ۱: پنل ورود سنتی با نام کاربری و کلمه عبور #}
+<div id="password-panel" class="auth-panel">
+    {% if oauth_mode %}
+    {# ارسال فرم مستقیم POST در سناریوی احراز هویت OAuth2 مودل #}
+    <form id="oauth-login-form" class="auth-form" action="/oauth/authorize" method="post">
+        <input type="hidden" name="client_id" value="{{ client_id }}">
+        <input type="hidden" name="redirect_uri" value="{{ redirect_uri }}">
+        <input type="hidden" name="state" value="{{ state }}">
+        <input type="hidden" name="scope" value="{{ scope }}">
+
+        <div class="form-group">
+            <label for="username">نام کاربری، شماره دانشجویی یا کد ملی</label>
+            <input type="text" id="username" name="username" class="form-control" required placeholder="مثال: 0012345678" autocomplete="username" autofocus>
+        </div>
+
+        <div class="form-group">
+            <label for="password">رمز عبور</label>
+            <input type="password" id="password" name="password" class="form-control" required placeholder="••••••••" autocomplete="current-password">
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+            <span class="btn-text">ورود به حساب کاربری</span>
+        </button>
+    </form>
+    {% else %}
+    {# ارسال فرم ناهمگام AJAX در حالت ورود مستقیم #}
+    <form id="login-form" class="auth-form" method="post">
+        <input type="hidden" id="wantsurl" name="wantsurl" value="{{ wantsurl }}">
+
+        <div class="form-group">
+            <label for="username">نام کاربری، شماره دانشجویی یا کد ملی</label>
+            <input type="text" id="username" name="username" class="form-control" required placeholder="مثال: 0012345678" autocomplete="username" autofocus>
+        </div>
+
+        <div class="form-group">
+            <label for="password">رمز عبور</label>
+            <input type="password" id="password" name="password" class="form-control" required placeholder="••••••••" autocomplete="current-password">
+        </div>
+
+        <button type="submit" id="login-btn" class="btn btn-primary">
+            <span class="btn-text">ورود به حساب کاربری</span>
+            <span class="btn-spinner hidden"></span>
+        </button>
+    </form>
+    {% endif %}
+</div>
+
+{# تب ۲: پنل ورود با ارسال پیامک کد یکبار مصرف (SMS OTP) #}
+<div id="otp-panel" class="auth-panel hidden">
+    <form id="otp-login-form" class="auth-form" method="post">
+        {% if oauth_mode %}
+        <input type="hidden" name="client_id" value="{{ client_id }}">
+        <input type="hidden" name="redirect_uri" value="{{ redirect_uri }}">
+        <input type="hidden" name="state" value="{{ state }}">
+        <input type="hidden" name="scope" value="{{ scope }}">
+        {% else %}
+        <input type="hidden" id="otp-wantsurl" name="wantsurl" value="{{ wantsurl }}">
+        {% endif %}
+
+        <div class="form-group">
+            <label for="otp-username">نام کاربری، شماره دانشجویی یا کد ملی</label>
+            <div class="phone-input-row">
+                <input type="text" id="otp-username" name="username" class="form-control" placeholder="مثال: admin یا 0012345678" required autocomplete="username">
+                <button type="button" id="btn-send-otp" class="btn btn-secondary">
+                    <span class="btn-text">ارسال کد</span>
+                    <span class="btn-spinner hidden"></span>
+                </button>
+            </div>
+            <span class="form-hint" id="otp-user-hint">کد تایید به شماره همراه ثبت‌شده در سامانه ارسال خواهد شد.</span>
+        </div>
+
+        <div class="form-group otp-code-group" id="otp-code-container">
+            <div class="label-row">
+                <label for="otp-code">کد تایید دریافتی</label>
+                <span id="otp-timer" class="otp-timer hidden"></span>
+            </div>
+            <input type="text" id="otp-code" name="otp_code" class="form-control otp-code-input" dir="ltr" placeholder="مثال: 12345" maxlength="6" autocomplete="one-time-code" disabled>
+        </div>
+
+        <button type="submit" id="otp-submit-btn" class="btn btn-primary" disabled>
+            <span class="btn-text">ورود با کد یکبار مصرف</span>
+            <span class="btn-spinner hidden"></span>
+        </button>
+    </form>
+</div>
+{% endblock %}

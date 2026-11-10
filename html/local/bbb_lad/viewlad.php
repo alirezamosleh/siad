@@ -133,7 +133,6 @@ if (!$recordid && count($records) > 1) {
     $table->sortable(true, 'joined', SORT_DESC);
     $table->pageable(true);
     $table->collapsible(false);
-    $table->is_downloading($download, 'payment_log', 'payment_log');
     $table->setup();
 
     if (!$table->is_downloading()) {
@@ -147,27 +146,35 @@ if (!$recordid && count($records) > 1) {
 
     // Add data.
     $record = reset($records);
-    $data = json_decode($record->data, true);
-    $attendees = $data['data']['attendees'];
+    $data = !empty($record->data) ? json_decode($record->data, true) : null;
+    $attendees = (is_array($data) && isset($data['data']['attendees']) && is_array($data['data']['attendees']))
+        ? $data['data']['attendees']
+        : [];
 
-    foreach ($attendees as $attendee) {
-        $attendee['name'] = table::get_attendee_name($attendee);
-
-        $data = [];
-        if ($table->is_downloading()) {
-            $data[] = $attendee['name'];
-            $data[] = table::format_jl_for_download($attendee['joins']);
-            $data[] = table::format_jl_for_download($attendee['leaves']);
-        } else {
-            $data[] = table::userlink($attendee);
+    if (empty($attendees)) {
+        if (!$table->is_downloading()) {
+            echo $OUTPUT->notification(get_string('norecords', 'local_bbb_lad'), 'info');
         }
-        $data[] = table::user_roles($attendee, $context);
-        $data[] = table::format_time((int)$attendee['duration']);
-        $data[] = table::format_time((int)$attendee['engagement']['talk_time']);
-        $data[] = $attendee['engagement']['chats'];
-        $data[] = $attendee['engagement']['talks'];
-        $data[] = $attendee['engagement']['poll_votes'];
-        $table->add_data($data);
+    } else {
+        foreach ($attendees as $attendee) {
+            $attendee['name'] = table::get_attendee_name($attendee);
+
+            $data = [];
+            if ($table->is_downloading()) {
+                $data[] = $attendee['name'];
+                $data[] = table::format_jl_for_download($attendee['joins'] ?? []);
+                $data[] = table::format_jl_for_download($attendee['leaves'] ?? []);
+            } else {
+                $data[] = table::userlink($attendee);
+            }
+            $data[] = table::user_roles($attendee, $context);
+            $data[] = table::format_time((int)($attendee['duration'] ?? 0));
+            $data[] = table::format_time((int)($attendee['engagement']['talk_time'] ?? 0));
+            $data[] = $attendee['engagement']['chats'] ?? 0;
+            $data[] = $attendee['engagement']['talks'] ?? 0;
+            $data[] = $attendee['engagement']['poll_votes'] ?? 0;
+            $table->add_data($data);
+        }
     }
     $table->finish_output();
 

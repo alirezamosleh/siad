@@ -109,16 +109,16 @@ $string['attemptnumber'] = 'Attempt number';
 $string['attemptsettings'] = 'Attempt settings';
 $string['attemptreopenmethod'] = 'Grant attempts';
 $string['attemptreopenmethod_automatic'] = 'Automatically';
-$string['attemptreopenmethod_automatic_help'] = 'After each attempt, the next is granted automatically.';
-$string['attemptreopenmethod_help'] = 'This setting controls how students are granted attempts for this assignment. For each attempt, the grade and feedback are saved, and can be viewed by the teacher and the student. The available options are:
+$string['attemptreopenmethod_automatic_help'] = 'After each attempt, the next is granted automatically after grading.';
+$string['attemptreopenmethod_help'] = 'This setting controls how students are granted attempts for this assignment. For each attempt, the grade and feedback are saved, and can be viewed by the teacher and the student. Options are:
 
 * Manually - After each attempt, you can grant the next one through the Submissions page or the Grader page.
-* Automatically - After each attempt, the next is granted automatically.
-* Automatically until pass - After each attempt, the next will be granted automatically, until the student achieves the passing grade.';
+* Automatically - After each attempt, the next is granted automatically after grading.
+* Automatically until pass - After each attempt, the next will be granted automatically after grading, until the student achieves the passing grade.';
 $string['attemptreopenmethod_manual'] = 'Manually';
 $string['attemptreopenmethod_manual_help'] = 'After each attempt, you can grant the next one through the Submissions page or the Grader page.';
 $string['attemptreopenmethod_untilpass'] = 'Automatically until pass';
-$string['attemptreopenmethod_untilpass_help'] = 'After each attempt, the next will be granted automatically, until the student achieves the passing grade.';
+$string['attemptreopenmethod_untilpass_help'] = 'After each attempt, the next will be granted automatically after grading, until the student achieves the passing grade.';
 $string['availability'] = 'Availability';
 $string['back'] = 'Back';
 $string['backtoassignment'] = 'Back to assignment';
@@ -145,8 +145,10 @@ $string['batchsetallocatedmarker'] = 'Set allocated marker for {$a} selected use
 $string['batchsetmarkingworkflowstateforusers'] = 'Set marking workflow state for {$a} selected user(s).';
 $string['beginassignment'] = 'Begin assignment';
 $string['blindmarking'] = 'Anonymous submissions';
-$string['blindmarkingenabledwarning'] = 'Anonymous submissions are enabled for this activity. Grades will not be added to the gradebook until student identities are revealed via the "Actions" menu.';
+$string['blindmarkingenabledwarning'] = 'Anonymous submissions are enabled for this activity.';
+$string['blindmarkingnogradewarning'] = 'Anonymous submissions are enabled for this activity. Grades will not be added to the gradebook until student identities are revealed via the "Actions" menu.';
 $string['blindmarking_help'] = 'Anonymous submissions hide the identity of students from markers. Anonymous submission settings will be locked once a submission or grade has been made in relation to this assignment.';
+$string['bulkactionsselection'] = 'Bulk actions selection';
 $string['cachedef_overrides'] = 'User and group override information';
 $string['calendardue'] = '{$a} is due';
 $string['calendarextension'] = '{$a} is due (extension)';
@@ -218,6 +220,7 @@ $string['editingstatus'] = 'Editing status';
 $string['enabled'] = 'Enabled';
 $string['enabletimelimit'] = 'Enable timed assignments';
 $string['enabletimelimit_help'] = 'If enabled, you can set a time limit on assignment settings page.';
+$string['errorgradechangessaveddetail'] = 'The changes to the grade and feedback were not saved.';
 $string['eventallsubmissionsdownloaded'] = 'All the submissions are being downloaded.';
 $string['eventassessablesubmitted'] = 'A submission has been submitted.';
 $string['eventbatchsetmarkerallocationviewed'] = 'Batch set marker allocation viewed';
@@ -652,9 +655,9 @@ $string['subplugintype_assignsubmission'] = 'Submission plugin';
 $string['subplugintype_assignsubmission_plural'] = 'Submission plugins';
 $string['subplugintype_assignfeedback'] = 'Feedback plugin';
 $string['subplugintype_assignfeedback_plural'] = 'Feedback plugins';
-$string['teamname'] = 'Team: {$a}';
+$string['teamname'] = 'Group: {$a}';
 $string['teamsubmission'] = 'Students submit in groups';
-$string['teamsubmission_help'] = 'If enabled, students will be divided into groups based on the default set of groups or a custom grouping. A group submission will be shared among group members and all members of the group will see each others\' changes to the submission.';
+$string['teamsubmission_help'] = 'If enabled, students will be divided into groups based on the default set of groups or a custom grouping. A group submission will be shared among group members and all members of the group will see each others\' changes to the submission. Note: You cannot change this setting if there are submissions already.';
 $string['teamsubmissiongroupingid'] = 'Grouping for student groups';
 $string['teamsubmissiongroupingid_help'] = 'This is the grouping that the assignment will use to find groups for student groups. If not set, the default set of groups will be used.';
 $string['textinstructions'] = 'Assignment instructions';

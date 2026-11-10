@@ -798,72 +798,55 @@ class recording extends persistent {
             $params['status_awaiting'] = self::RECORDING_STATUS_AWAITING;
         }
 
-        // Process all recordings in batches to avoid timeout.
-        // We collect ALL ids first, then process in batches.
-        // This avoids the issue where status changes mid-loop affect pagination.
-        $allrecordings = $DB->get_records_select(
-            static::TABLE,
-            $select,
-            $params,
-            'id ASC',
-            '*'
-        );
+        $recordings = $DB->get_records_select(static::TABLE, $select, $params, self::DEFAULT_RECORDING_SORT);
+        // Sort by DEFAULT_RECORDING_SORT we get the same result on different db engines.
 
-        $totalcount = count($allrecordings);
-        mtrace("=> Found {$totalcount} recordings to process");
+        $recordingcount = count($recordings);
+        mtrace("=> Found {$recordingcount} recordings to query");
+
+        // Grab the recording IDs.
+        $recordingids = array_map(function($recording) {
+            return $recording->recordingid;
+        }, $recordings);
+
+        // Fetch all metadata for these recordings.
+        mtrace("=> Fetching recording metadata from server");
+        $metadatas = recording_proxy::fetch_recordings($recordingids);
 
         $foundcount = 0;
-        $batchsize = 100;
-        $chunks = array_chunk($allrecordings, $batchsize, true);
+        foreach ($metadatas as $recordingid => $metadata) {
+            mtrace("==> Found metadata for {$recordingid}.");
+            $id = array_search($recordingid, $recordingids);
+            if (!$id) {
+                // Recording was not found, skip.
+                mtrace("===> Skip as fetched recording was not found.");
+                continue;
+            }
+            // Recording was found, update status.
+            mtrace("===> Update local cache as fetched recording was found.");
+            $recording = new self(0, $recordings[$id], $metadata);
+            $recording->set_status(self::RECORDING_STATUS_PROCESSED);
+            $foundcount++;
 
-        foreach ($chunks as $chunkindex => $batchrecordings) {
-            $batchnum = $chunkindex + 1;
-            $batchcount = count($batchrecordings);
-            mtrace("=> Processing batch {$batchnum} of " . count($chunks) . " ({$batchcount} recordings)");
-
-            $recordingids = array_map(function($recording) {
-                return $recording->recordingid;
-            }, $batchrecordings);
-
-            // Keep MySQL connection alive during long BBB API calls.
-            $DB->execute("SELECT 1");
-            mtrace("=> Sending " . count($recordingids) . " IDs to BBB server...");
-            $fetchstart = microtime(true);
-            $metadatas = recording_proxy::fetch_recordings($recordingids);
-            $fetchtime = round(microtime(true) - $fetchstart, 2);
-            mtrace("=> BBB responded in {$fetchtime}s - found " . count($metadatas) . " recordings");
-
-            foreach ($metadatas as $recordingid => $metadata) {
-                mtrace("==> Found metadata for {$recordingid}.");
-                $id = array_search($recordingid, $recordingids);
-                if (!$id) {
-                    mtrace("===> Skip as fetched recording was not found.");
-                    continue;
-                }
-                mtrace("===> Update local cache as fetched recording was found.");
-                $recording = new self($batchrecordings[$id]->id, $batchrecordings[$id], $metadata);
-                $recording->set_status(self::RECORDING_STATUS_PROCESSED);
-                $foundcount++;
-
-                if (array_key_exists('breakouts', $metadata)) {
-                    foreach ($metadata['breakouts'] as $breakoutrecordingid => $breakoutmetadata) {
-                        $breakoutrecording = self::get_record(['recordingid' => $breakoutrecordingid]);
-                        if (!$breakoutrecording) {
-                            $breakoutrecording = new recording(0, (object) [
-                                'courseid' => $recording->get('courseid'),
-                                'bigbluebuttonbnid' => $recording->get('bigbluebuttonbnid'),
-                                'groupid' => $recording->get('groupid'),
-                                'recordingid' => $breakoutrecordingid
-                            ], $breakoutmetadata);
-                            $breakoutrecording->create();
-                        }
-                        $breakoutrecording->set_status(self::RECORDING_STATUS_PROCESSED);
-                        $foundcount++;
+            if (array_key_exists('breakouts', $metadata)) {
+                // Iterate breakout recordings (if any) and update status.
+                foreach ($metadata['breakouts'] as $breakoutrecordingid => $breakoutmetadata) {
+                    $breakoutrecording = self::get_record(['recordingid' => $breakoutrecordingid]);
+                    if (!$breakoutrecording) {
+                        $breakoutrecording = new recording(0, (object) [
+                            'courseid' => $recording->get('courseid'),
+                            'bigbluebuttonbnid' => $recording->get('bigbluebuttonbnid'),
+                            'groupid' => $recording->get('groupid'),
+                            'recordingid' => $breakoutrecordingid
+                        ], $breakoutmetadata);
+                        $breakoutrecording->create();
                     }
+                    $breakoutrecording->set_status(self::RECORDING_STATUS_PROCESSED);
+                    $foundcount++;
                 }
             }
         }
 
-        mtrace("=> Finished processing recordings. Updated status for {$foundcount} / {$totalcount} recordings.");
+        mtrace("=> Finished processing recordings. Updated status for {$foundcount} / {$recordingcount} recordings.");
     }
 }

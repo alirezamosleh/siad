@@ -10525,13 +10525,13 @@ class admin_setting_configcolourpicker extends admin_setting {
             return $data;
         } else if (in_array(strtolower($data), $colornames)) {
             return $data;
-        } else if (preg_match('/rgb\(\d{0,3}%?\, ?\d{0,3}%?, ?\d{0,3}%?\)/i', $data)) {
+        } else if (preg_match('/^rgb\(\d{0,3}%?\, ?\d{0,3}%?, ?\d{0,3}%?\)$/i', $data)) {
             return $data;
-        } else if (preg_match('/rgba\(\d{0,3}%?\, ?\d{0,3}%?, ?\d{0,3}%?\, ?\d(\.\d)?\)/i', $data)) {
+        } else if (preg_match('/^rgba\(\d{0,3}%?\, ?\d{0,3}%?, ?\d{0,3}%?\, ?\d(\.\d)?\)$/i', $data)) {
             return $data;
-        } else if (preg_match('/hsl\(\d{0,3}\, ?\d{0,3}%, ?\d{0,3}%\)/i', $data)) {
+        } else if (preg_match('/^hsl\(\d{0,3}\, ?\d{0,3}%, ?\d{0,3}%\)$/i', $data)) {
             return $data;
-        } else if (preg_match('/hsla\(\d{0,3}\, ?\d{0,3}%,\d{0,3}%\, ?\d(\.\d)?\)/i', $data)) {
+        } else if (preg_match('/^hsla\(\d{0,3}\, ?\d{0,3}%, ?\d{0,3}%\, ?\d(\.\d)?\)$/i', $data)) {
             return $data;
         } else if (($data == 'transparent') || ($data == 'currentColor') || ($data == 'inherit')) {
             return $data;
@@ -11800,7 +11800,9 @@ class admin_setting_check extends admin_setting {
         $output = $OUTPUT->notification($loadingicon . $loadingstr, \core\output\notification::NOTIFY_INFO, false);
 
         // Add the action link.
-        $output .= $OUTPUT->render($this->check->get_action_link());
+        if ($actionlink = $this->check->get_action_link()) {
+            $output .= $OUTPUT->render($actionlink);
+        }
 
         // Wrap in a div with a reference. The JS getAndRender will replace this with the response from the webservice.
         $statusdiv = \html_writer::div($output, '', ['data-check-reference' => $domref]);

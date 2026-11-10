@@ -1,7 +1,7 @@
 version: '3.8'
 
 # Optimized Docker Compose for Moodle
-# Server: 8 cores, 16GB RAM
+# Server: 20 cores, 40GB RAM
 # Load: 1500 users, 400 peak concurrent
 # Last updated: 2026-02-10
 
@@ -21,28 +21,21 @@ services:
       - ./mariadb.my.cnf:/opt/bitnami/mariadb/conf/my_custom.cnf:ro
 
   redis:
-    image: bitnami/redis:7.2
+    image: redis:alpine
     container_name: moodle_redis
     restart: unless-stopped
-    environment:
-      - REDIS_PASSWORD=kali
-      - REDIS_MAXMEMORY=4096mb       
-      - REDIS_MAXMEMORY_POLICY=allkeys-lru
-      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
-      - REDIS_SAVE=900 1 300 10        
-      - REDIS_APPENDONLY=yes         
-      - REDIS_APPENDFSYNC=everysec      
+    command: redis-server --requirepass kali --maxmemory 4096mb --maxmemory-policy allkeys-lru --appendonly yes
     volumes:
-      - redis_data:/bitnami/redis/data
+      - redis_data:/data
 
   
   moodle:
     image: bitnami/moodle:4.5
     container_name: moodle_app
-    expose:
-      - "8080"
+    ports:
+      - "${MOODLE_PORT:-8080}:8080"
     restart: unless-stopped 
-    entrypoint: ["/docker/moodle-entrypoint.sh"]
+    # entrypoint: ["/docker/moodle-entrypoint.sh"]
     extra_hosts:
       - "joinin.ir:185.37.54.19"
       - "join.jz.ac.ir:185.37.54.19"
@@ -52,28 +45,29 @@ services:
         #- "mirror.arvancloud.ir:185.143.233.234"  
     environment:
       # ===== DATABASE CONFIG =====
-      - MOODLE_DATABASE_TYPE=mariadb
-      - MOODLE_DATABASE_HOST=mariadb
-      - MOODLE_DATABASE_PORT_NUMBER=3306
-      - MOODLE_DATABASE_USER=alirezabb
-      - MOODLE_DATABASE_PASSWORD=SEDO3482389D4
-      - MOODLE_DATABASE_NAME=siad
+      - MOODLE_DATABASE_TYPE=${DB_TYPE:-mariadb}
+      - MOODLE_DATABASE_HOST=${DB_HOST:-mariadb}
+      - MOODLE_DATABASE_PORT_NUMBER=${DB_PORT:-3306}
+      - MOODLE_DATABASE_USER=${DB_USER:-alirezabb}
+      - MOODLE_DATABASE_PASSWORD=${DB_PASSWORD:-SEDO3482389D4}
+      - MOODLE_DATABASE_NAME=${DB_NAME:-siad}
 
       # ===== ADMIN CREDENTIALS =====
-      - MOODLE_USERNAME=admin1
-      - MOODLE_PASSWORD=N.mosleh63@
-      - MOODLE_EMAIL=work.alirezamosleh@gmail.com
-      - MOODLE_SITE_NAME=سیاد
+      - MOODLE_USERNAME=${MOODLE_ADMIN_USER:-admin1}
+      - MOODLE_PASSWORD=${MOODLE_ADMIN_PASSWORD:-N.mosleh63@}
+      - MOODLE_EMAIL=${MOODLE_ADMIN_EMAIL:-work.alirezamosleh@gmail.com}
+      - MOODLE_SITE_NAME=${MOODLE_SITE_NAME:-سامانه سیاد}
 
       # ===== SITE URL & PROXY =====
-      - MOODLE_HOST=siad.hu.jz.ac.ir
-      - MOODLE_REVERSEPROXY=yes
-      - MOODLE_SSLPROXY=yes
+      - MOODLE_HOST=${MOODLE_HOST:-localhost:8080}
+      - MOODLE_URL=${MOODLE_URL:-http://localhost:8080}
+      - MOODLE_REVERSEPROXY=${MOODLE_REVERSEPROXY:-no}
+      - MOODLE_SSLPROXY=${MOODLE_SSLPROXY:-no}
 
       # ===== REDIS SESSION =====
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=kali
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-kali}
 
       # ===== PHP SETTINGS =====
       - PHP_MEMORY_LIMIT=512M
@@ -84,9 +78,6 @@ services:
       # ===== SKIP BOOTSTRAP (if database already exists) =====
       # - MOODLE_SKIP_BOOTSTRAP=yes
       - BITNAMI_DEBUG=false
-      - MOODLE_REVERSE_PROXY=yes
-    
-      - MOODLE_SSL_PROXY=yes
       - MOODLE_HTTP_PORT_NUMBER=8080
     volumes:
       - ./html:/bitnami/moodle
@@ -105,28 +96,49 @@ services:
   moodle-cron:
     image: moodle-cron:v1
     container_name: moodle_cron
-    user: "0:0"   
     restart: unless-stopped
-    entrypoint: ["/docker/moodle-entrypoint.sh"]    
+    command: ["cron"]
     environment:
-      - MOODLE_DATABASE_TYPE=mariadb
-      - MOODLE_DATABASE_HOST=mariadb
-      - MOODLE_DATABASE_PORT_NUMBER=3306
-      - MOODLE_DATABASE_USER=alirezabb
-      - MOODLE_DATABASE_PASSWORD=SEDO3482389D4
-      - MOODLE_DATABASE_NAME=siad
-      - MOODLE_HOST=siad.hu.jz.ac.ir
-      - MOODLE_REVERSEPROXY=yes
-      - MOODLE_SSLPROXY=yes
+      - MOODLE_DATABASE_TYPE=${DB_TYPE:-mariadb}
+      - MOODLE_DATABASE_HOST=${DB_HOST:-mariadb}
+      - MOODLE_DATABASE_PORT_NUMBER=${DB_PORT:-3306}
+      - MOODLE_DATABASE_USER=${DB_USER:-alirezabb}
+      - MOODLE_DATABASE_PASSWORD=${DB_PASSWORD:-SEDO3482389D4}
+      - MOODLE_DATABASE_NAME=${DB_NAME:-siad}
+      - MOODLE_HOST=${MOODLE_HOST:-localhost:8080}
+      - MOODLE_URL=${MOODLE_URL:-http://localhost:8080}
+      - MOODLE_REVERSEPROXY=${MOODLE_REVERSEPROXY:-no}
+      - MOODLE_SSLPROXY=${MOODLE_SSLPROXY:-no}
     volumes:
       - ./html:/bitnami/moodle
       - moodledata_data:/bitnami/moodledata
       - ./php.ini:/opt/bitnami/php/etc/conf.d/custom.ini:ro
-      - ./moodle-cron-entrypoint.sh:/docker/moodle-entrypoint.sh:ro
+      - ./moodle-entrypoint-cron.sh:/docker/moodle-entrypoint.sh:ro
         # ./config.php:/bitnami/moodle/config.php
     depends_on:
       - moodle
       - redis
+
+  # FastAPI Smart Auth & SSO Service (Moodle OAuth2/OIDC & Fast Login)
+  fastapi_auth:
+    image: moodle_fastapi_auth:latest
+    build:
+      context: ./fastapi_auth
+      dockerfile: Dockerfile
+    container_name: moodle_fastapi_auth
+    restart: unless-stopped
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+    env_file:
+      - ./fastapi_auth/.env
+    expose:
+      - "8000"
+    ports:
+      - "8016:8000"
+    volumes:
+      - ./fastapi_auth/app:/app/app
+    depends_on:
+      - mariadb
+      - moodle
 
   # Greenlight data services are isolated from Moodle's MariaDB/Redis stack.
   greenlight-postgres:
@@ -158,6 +170,8 @@ services:
       REDIS_URL: redis://greenlight-redis:6379
     expose:
       - "3000"
+    ports:
+      - "${GREENLIGHT_PORT:-3000}:3000"
     logging:
       driver: ${LOGGING_DRIVER:-json-file}
     volumes:
@@ -243,8 +257,8 @@ services:
     restart: unless-stopped
       #network_mode: host
     ports:
-      - "80:80"
-      - "443:443"
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx-site.conf:/etc/nginx/conf.d/default.conf

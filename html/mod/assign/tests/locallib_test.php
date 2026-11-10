@@ -613,6 +613,9 @@ final class locallib_test extends \advanced_testcase {
         $this->assertEquals(true, $assign->delete_instance());
     }
 
+    /**
+     * @covers ::assign_reset_userdata
+     */
     public function test_reset_userdata(): void {
         global $DB;
 
@@ -624,9 +627,12 @@ final class locallib_test extends \advanced_testcase {
         $now = time();
         $this->setUser($teacher);
         $assign = $this->create_instance($course, [
-                'assignsubmission_onlinetext_enabled' => 1,
-                'duedate' => $now,
-            ]);
+            'assignsubmission_onlinetext_enabled' => 1,
+            'allowsubmissionsfromdate' => $now - HOURSECS,
+            'duedate' => $now,
+            'cutoffdate' => $now + HOURSECS,
+            'gradingduedate' => $now + DAYSECS,
+        ]);
 
         // Simulate adding a grade.
         $this->add_submission($student, $assign);
@@ -659,7 +665,10 @@ final class locallib_test extends \advanced_testcase {
 
         // Reload the instance data.
         $instance = $DB->get_record('assign', ['id' => $assign->get_instance()->id]);
+        $this->assertEquals($now - HOURSECS + DAYSECS, $instance->allowsubmissionsfromdate);
         $this->assertEquals($now + DAYSECS, $instance->duedate);
+        $this->assertEquals($now + HOURSECS + DAYSECS, $instance->cutoffdate);
+        $this->assertEquals($now + DAYSECS + DAYSECS, $instance->gradingduedate);
 
         // Test reset using assign_reset_userdata().
         $assignduedate = $instance->duedate; // Keep old updated value for comparison.
@@ -4815,5 +4824,32 @@ Anchor link 2:<a title=\"bananas\" href=\"../logo-240x60.gif\">Link text</a>
         $result = $assign->get_error_messages();
         $this->assertIsArray($result);
         $this->assertNotEmpty($result);
+    }
+
+    /**
+     * Test that assignment grades are pushed to the gradebook when anonymous
+     * submissions and marking workflow are enabled (MDL-83195).
+     * @covers \assign::gradebook_item_update
+     */
+    public function test_release_grade_anon(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'teacher');
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+
+        $assign = $this->create_instance($course, [
+            'blindmarking' => 1,
+            'markingworkflow' => 1,
+            'markinganonymous' => 1,
+        ]);
+
+        // Add a grade and change the workflow status to "Released".
+        $this->mark_submission($teacher, $assign, $student, 50.0,  [
+            'workflowstate' => ASSIGN_MARKING_WORKFLOW_STATE_RELEASED,
+        ]);
+
+        // Make sure the grade has been pushed to the gradebook.
+        $gradinginfo = grade_get_grades($course->id, 'mod', 'assign', $assign->get_instance()->id, $student->id);
+        $this->assertEquals(50, (int)$gradinginfo->items[0]->grades[$student->id]->grade);
     }
 }

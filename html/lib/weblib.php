@@ -1569,8 +1569,7 @@ function send_headers($contenttype, $cacheable = true) {
         @header('Expires: ');
     } else {
         // Do everything we can to always prevent clients and proxies caching.
-        @header('Cache-Control: no-store, no-cache, must-revalidate');
-        @header('Cache-Control: post-check=0, pre-check=0, no-transform', false);
+        @header('Cache-Control: no-store, no-cache, must-revalidate, no-transform');
         @header('Pragma: no-cache');
         @header('Expires: Mon, 20 Aug 1969 09:23:00 GMT');
         @header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
@@ -2682,7 +2681,9 @@ function get_formatted_help_string($identifier, $component, $ajax = false, $a = 
 
         $helplink = $identifier . '_link';
         if ($sm->string_exists($helplink, $component)) {  // Link to further info in Moodle docs.
-            $link = get_string($helplink, $component);
+            // The link is stored in a language file but should not be translated, use value for English.
+            $link = $sm->get_string($helplink, $component, null, 'en');
+            // The text 'More help' should be in the current language.
             $linktext = get_string('morehelp');
 
             $data->doclink = new stdClass();
@@ -2692,8 +2693,7 @@ function get_formatted_help_string($identifier, $component, $ajax = false, $a = 
                 $data->doclink->linktext = $linktext;
                 $data->doclink->class = ($CFG->doctonewwindow) ? 'helplinkpopup' : '';
             } else {
-                $data->completedoclink = html_writer::tag('div', $OUTPUT->doc_link($link, $linktext),
-                    array('class' => 'helpdoclink'));
+                $data->completedoclink = html_writer::div($OUTPUT->doc_link($link, $linktext, true), 'helpdoclink');
             }
         }
     } else {

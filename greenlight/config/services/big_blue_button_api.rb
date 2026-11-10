@@ -262,11 +262,20 @@ class BigBlueButtonApi
   end
 
   def join_password_for(room:, role:)
-    info = bbb_server.get_meeting_info(room.meeting_id, nil)
-    if role.to_s.casecmp('moderator').zero?
-      info[:moderatorPW] || info['moderatorPW']
-    else
-      info[:attendeePW] || info['attendeePW']
+    begin
+      info = bbb_server.get_meeting_info(room.meeting_id, nil)
+      if role.to_s.casecmp('moderator').zero?
+        info[:moderatorPW] || info['moderatorPW']
+      else
+        info[:attendeePW] || info['attendeePW']
+      end
+    rescue StandardError => e
+      Rails.logger.warn("JoinIN get_meeting_info fallback for #{room.meeting_id}: #{e.class}: #{e.message}")
+      if role.to_s.casecmp('moderator').zero?
+        room.try(:moderator_pw).presence || 'moderator'
+      else
+        room.try(:attendee_pw).presence || 'viewer'
+      end
     end
   end
 

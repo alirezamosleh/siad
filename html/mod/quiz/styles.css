@@ -298,6 +298,18 @@ body.path-mod-quiz table tbody tr.gradedattempt > td.sticky-column {
     background-color: #d9edf7;
 }
 
+body.path-mod-quiz .generaltable tbody tr:not(.gradedattempt):nth-of-type(odd) > td.sticky-column {
+    background-color: #f7f7f7;
+}
+
+body.path-mod-quiz .generaltable tbody tr:not(.gradedattempt):nth-of-type(even) > td.sticky-column {
+    background-color: #fff;
+}
+
+body.path-mod-quiz .generaltable tbody tr:not(.gradedattempt):hover > td.sticky-column {
+    background-color: #ececec;
+}
+
 /** Mod quiz summary **/
 #page-mod-quiz-summary #content {
     text-align: center;
@@ -532,10 +544,6 @@ table.quizreviewsummary td.cell {
 #page-mod-quiz-edit .slotnumber {
     text-align: center;
     margin: 0.1em 0.5em;
-    min-width: 2em;
-    display: inline-block;
-}
-#page-mod-quiz-edit li.section .slotnumber.unshuffled {
     display: inline-block;
 }
 #page-mod-quiz-edit li.section .slotnumber.shuffled {
@@ -546,6 +554,10 @@ table.quizreviewsummary td.cell {
 }
 #page-mod-quiz-edit li.section.shuffled .slotnumber.shuffled {
     display: inline-block;
+}
+
+#page-mod-quiz-edit .slotnumber .inplaceeditable {
+    white-space: nowrap;
 }
 
 #page-mod-quiz-edit .section-heading {
@@ -606,7 +618,7 @@ table.quizreviewsummary td.cell {
 
 #page-mod-quiz-edit ul.section {
     margin: 0;
-    padding: 0 20px;
+    padding: 0 38px;
 }
 
 #page-mod-quiz-edit ul.slots {
@@ -671,8 +683,11 @@ table.quizreviewsummary td.cell {
 
 #page-mod-quiz-edit ul.slots li.section li.activity .page_split_join_wrapper {
     position: absolute;
-    left: -20px;
-    bottom: -11px;
+    left: -38px;
+    bottom: -18px;
+    .icon {
+        width: auto;
+    }
 }
 
 #page-mod-quiz-edit ul.slots li.section li.activity .instancemaxmark.decimalplaces_0 {
@@ -725,8 +740,8 @@ table.quizreviewsummary td.cell {
 
 #page-mod-quiz-edit ul.slots li.section li.activity .question_dependency_wrapper {
     position: absolute;
-    top: -1em;
-    right: -20px;
+    top: -1.25em;
+    right: -38px;
 }
 
 #page-mod-quiz-edit ul.slots li.section li.activity .question_dependency_wrapper.question_dependency_cannot_depend {
@@ -758,8 +773,6 @@ table.quizreviewsummary td.cell {
     overflow-y: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    display: inline-block;
-    height: 20px;
 }
 
 #page-mod-quiz-edit ul.slots .activityinstance span.instancename img {

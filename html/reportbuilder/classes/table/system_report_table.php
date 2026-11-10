@@ -112,7 +112,7 @@ class system_report_table extends base_report_table {
             $groupby = $fields;
         }
 
-        $columnheaders = $columnsattributes = [];
+        $columnheaders = $columnheaderattributes = $columnattributes = [];
 
         // Check whether report has checkbox toggle defined, note that select all is excluded during download.
         if (($checkbox = $this->report->get_checkbox_toggleall(true)) && !$this->is_downloading()) {
@@ -147,7 +147,8 @@ class system_report_table extends base_report_table {
             }
 
             // Generate column attributes to be included in each cell.
-            $columnsattributes[$column->get_column_alias()] = $column->get_attributes();
+            $columnheaderattributes[$column->get_column_alias()] = $column->get_header_attributes();
+            $columnattributes[$column->get_column_alias()] = $column->get_attributes();
         }
 
         // If the report has any actions then append appropriate column, note that actions are excluded during download.
@@ -162,7 +163,8 @@ class system_report_table extends base_report_table {
         $this->define_headers(array_values($columnheaders));
 
         // Add column attributes to the table.
-        $this->set_columnsattributes($columnsattributes);
+        $this->set_columnheadersattributes($columnheaderattributes);
+        $this->set_columnsattributes($columnattributes);
 
         // Initial table sort column.
         if ($sortcolumn = $this->report->get_initial_sort_column()) {
@@ -259,10 +261,7 @@ class system_report_table extends base_report_table {
         global $OUTPUT;
 
         $menu = new action_menu();
-        $menu->set_menu_trigger(
-            $OUTPUT->pix_icon('i/menu', get_string('actions', 'core_reportbuilder')),
-            'btn btn-icon d-flex align-items-center justify-content-center no-caret',
-        );
+        $menu->set_kebab_trigger(get_string('actions', 'core_reportbuilder'));
 
         $actions = array_filter($this->report->get_actions(), function($action) use ($row) {
             // Only return dividers and action items who can be displayed for current users.

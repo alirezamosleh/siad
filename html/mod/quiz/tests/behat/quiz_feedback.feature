@@ -19,10 +19,10 @@ Feature: Enable deferred or immediate feedback for quiz
       | contextlevel | reference | name           |
       | Course       | C1        | Test questions |
     And the following "questions" exist:
-      | questioncategory | qtype       | name  | questiontext    |
-      | Test questions   | truefalse   | TF1   | First question  |
+      | questioncategory | qtype       | name  | questiontext                                             | generalfeedback                                                               |
+      | Test questions   | truefalse   | TF1   | <a href="https://moodle.org">Moodle</a> is the best LMS  | You should know that <a href="https://moodle.org">Moodle</a> is the best LMS  |
 
-  @javascript
+  @javascript @accessibility
   Scenario: Attempt quiz with How questions behave set to Deferred Feedback
     Given the following "activity" exists:
       | activity                    | quiz             |
@@ -45,16 +45,18 @@ Feature: Enable deferred or immediate feedback for quiz
     # Confirm that check button does not exist when attempting quiz
     Then "Check Question 1" "button" should not exist
     And I set the field "False" to "1"
+    And the "region-main" "region" should meet accessibility standards
     And I press "Finish attempt ..."
     And I should not see "This is the wrong answer."
-    And I should not see "You should have selected true."
+    And I should not see "You should know that Moodle is the best LMS"
     And I should not see "The correct answer is 'True'."
     And I press "Submit all and finish"
     # Confirm that quiz answer feedback only appears when attempt is submitted
     And I click on "Submit all and finish" "button" in the "Submit all your answers and finish?" "dialogue"
     And I should see "This is the wrong answer."
-    And I should see "You should have selected true."
+    And I should see "You should know that Moodle is the best LMS"
     And I should see "The correct answer is 'True'."
+    And the "region-main" "region" should meet accessibility standards
 
   Scenario: Attempt quiz with How questions behave set to Immediate Feedback
     Given the following "activity" exists:
@@ -80,3 +82,68 @@ Feature: Enable deferred or immediate feedback for quiz
     And the "True" "field" should be disabled
     And the "False" "field" should be disabled
     And "Check Question 1" "button" should not exist
+
+  Scenario Outline: Responses, answers and feedback are displayed after attempting a quiz depending on time finished
+    Given the following "activity" exists:
+      | activity                    | quiz           |
+      | name                        | Quiz 1         |
+      | course                      | C1             |
+      | idnumber                    | quiz1          |
+      | maxmarksimmediately         | 0              |
+      | specificfeedbackimmediately | 0              |
+      | rightanswerimmediately      | 0              |
+    And quiz "Quiz 1" contains the following questions:
+      | question | page |
+      | TF1      | 1    |
+    And user "student1" has attempted "Quiz 1" with responses submitting "<timefinish>":
+      | slot | response |
+      |   1  | True     |
+    When I am on the "Quiz 1" "quiz activity" page logged in as student1
+    And I click on "Review" "link"
+    Then I should see "You should know that Moodle is the best LMS"
+    And I <visibility> see "This is the right answer."
+    And I <visibility> see "The correct answer is 'True'."
+    And the following <visibility> exist in the "quizreviewsummary" table:
+      |  -1-  |         -2-          |
+      | Marks | 1.00/1.00            |
+      | Grade | 100.00 out of 100.00 |
+
+    Examples:
+      | timefinish         | visibility |
+      | ## 1 minute ago ## | should not |
+      | ## 2 minute ago ## | should     |
+
+  Scenario Outline: Responses, answers and feedback cannot be reviewed after attempting a quiz as long as quiz is open
+    Given the following "activity" exists:
+      | activity                    | quiz            |
+      | name                        | Quiz 1          |
+      | course                      | C1              |
+      | idnumber                    | quiz1           |
+      | timeclose                   | <quizclosedate> |
+      | generalfeedbackimmediately  | 0               |
+      | attemptimmediately          | 0               |
+      | overallfeedbackopen         | 0               |
+      | rightansweropen             | 0               |
+      | generalfeedbackopen         | 0               |
+      | specificfeedbackopen        | 0               |
+      | marksopen                   | 0               |
+      | maxmarksopen                | 0               |
+      | correctnessopen             | 0               |
+      | attemptopen                 | 0               |
+    And quiz "Quiz 1" contains the following questions:
+      | question | page |
+      | TF1      | 1    |
+    And user "student1" has attempted "Quiz 1" with responses:
+      | slot | response |
+      |   1  | True     |
+    When I am on the "Quiz 1" "quiz activity" page logged in as student1
+    # Confirm the Review link visibility. Should exist if quiz is closed, otherwise, it shouldn't exist.
+    Then "Review" "link" <reviewlinkvisibility> exist
+    # Confirm the `Available` text and close date visibility. Should only be visible while quiz is open.
+    And I <availabilityvisibility> see "Available"
+    And I <availabilityvisibility> see "##tomorrow##%d/%m/%y##"
+
+    Examples:
+      | quizclosedate   | reviewlinkvisibility | availabilityvisibility |
+      | ## tomorrow ##  | should not           | should                 |
+      | ## yesterday ## | should               | should not             |

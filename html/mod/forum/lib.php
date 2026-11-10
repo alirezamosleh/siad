@@ -2309,6 +2309,12 @@ function mod_forum_rating_can_see_item_ratings($params) {
     $forum = $DB->get_record('forum', array('id' => $discussion->forum), '*', MUST_EXIST);
     $course = $DB->get_record('course', array('id' => $forum->course), '*', MUST_EXIST);
     $cm = get_coursemodule_from_instance('forum', $forum->id, $course->id , false, MUST_EXIST);
+    $context = context_module::instance($cm->id);
+    $ratingpermissions = forum_rating_permissions($context->id, 'mod_forum', 'post');
+    $requiredpermission = ($post->userid != $USER->id) ? 'viewall' : 'view';
+    if (!$ratingpermissions[$requiredpermission]) {
+        return false;
+    }
 
     // Perform some final capability checks.
     if (!forum_user_can_see_post($forum, $discussion, $post, $USER, $cm)) {
@@ -5044,7 +5050,7 @@ function forum_reset_gradebook($courseid, $type='') {
  *
  * @global object
  * @global object
- * @param $data the data submitted from the reset course.
+ * @param stdClass $data the data submitted from the reset course.
  * @return array status array
  */
 function forum_reset_userdata($data) {
@@ -5247,7 +5253,13 @@ function forum_reset_userdata($data) {
     if ($data->timeshift) {
         // Any changes to the list of dates that needs to be rolled should be same during course restore and course reset.
         // See MDL-9367.
-        shift_course_mod_dates('forum', ['assesstimestart', 'assesstimefinish'], $data->timeshift, $data->courseid);
+        shift_course_mod_dates('forum', [
+            'assesstimestart',
+            'assesstimefinish',
+            'duedate',
+            'cutoffdate',
+        ], $data->timeshift, $data->courseid);
+
         $status[] = [
             'component' => $componentstr,
             'item' => get_string('date'),

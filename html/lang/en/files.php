@@ -32,8 +32,8 @@ $string['redactor'] = 'File redaction';
 $string['redactor:exifremover'] = 'EXIF remover';
 $string['redactor:exifremover:emptyremovetags'] = 'Remove tags can not be empty!';
 $string['redactor:exifremover:enabled'] = 'Enable EXIF remover';
-$string['redactor:exifremover:enabled_desc'] = 'By default, EXIF Remover only supports JPG files using PHP GD, or ExifTool if it is configured.
-This degrades the quality of the image and removes the orientation tag.
+$string['redactor:exifremover:enabled_desc'] = 'By default, EXIF Remover only supports JPG files using PHP GD or ExifTool if configured.
+Using PHP GD for this purpose can degrade the quality of the image.
 
 To enhance the performance of EXIF Remover, please configure the ExifTool settings below.
 
@@ -43,7 +43,7 @@ $string['redactor:exifremover:failedprocessgd'] = 'Redaction failed: failed to p
 $string['redactor:exifremover:heading'] = 'ExifTool';
 $string['redactor:exifremover:mimetype'] = 'Supported MIME types';
 $string['redactor:exifremover:mimetype_desc'] = 'To add new MIME types, ensure they\'re included in the <a href="./tool/filetypes/index.php">File Types</a>.';
-$string['redactor:exifremover:removetags'] = 'The EXIF tags that will be removed.';
+$string['redactor:exifremover:removetags'] = 'EXIF tags to be removed';
 $string['redactor:exifremover:removetags_desc'] = 'The EXIF tags that need to be removed.';
 $string['redactor:exifremover:tag:all'] = 'All';
 $string['redactor:exifremover:tag:gps'] = 'GPS only';

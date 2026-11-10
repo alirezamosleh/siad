@@ -279,25 +279,7 @@ class recording_proxy extends proxy_base {
 
         $recordings = [];
         // If there were recordings already created.
-        // FIX: Added null check for $xml->recordings->recording
-        if (!isset($xml->recordings->recording) || empty($xml->recordings->recording)) {
-            return [];
-        }
-        
         foreach ($xml->recordings->recording as $recordingxml) {
-            // Filter out unrecorded sessions
-            // Skip if published is false or recording_duration is 0
-        $published = (string) $recordingxml->published;
-        if ($published === 'false') {
-            continue;
-        }
-        $joininrecorded = isset($recordingxml->metadata->joinin_recorded)
-            ? (int) $recordingxml->metadata->joinin_recorded
-            : 1;
-        if ($joininrecorded === 0) {
-            continue;
-        }
-                    
             $recording = self::parse_recording($recordingxml);
             $recordings[$recording['recordID']] = $recording;
             // Check if there are any child.
@@ -309,13 +291,10 @@ class recording_proxy extends proxy_base {
                 if ($breakoutrooms) {
                     $xml = self::fetch_endpoint_xml('getRecordings', ['recordID' => implode(',', $breakoutrooms)]);
                     if ($xml && $xml->returncode == 'SUCCESS' && isset($xml->recordings)) {
-                        // FIX: Added null check for breakout room recordings
-                        if (isset($xml->recordings->recording) && !empty($xml->recordings->recording)) {
-                            // If there were already created meetings.
-                            foreach ($xml->recordings->recording as $subrecordingxml) {
-                                $recording = self::parse_recording($subrecordingxml);
-                                $recordings[$recording['recordID']] = $recording;
-                            }
+                        // If there were already created meetings.
+                        foreach ($xml->recordings->recording as $subrecordingxml) {
+                            $recording = self::parse_recording($subrecordingxml);
+                            $recordings[$recording['recordID']] = $recording;
                         }
                     }
                 }
@@ -357,54 +336,17 @@ class recording_proxy extends proxy_base {
     public static function parse_recording(SimpleXMLElement $recording): array {
         // Add formats.
         $playbackarray = [];
-        // FIX: Added null check for playback format
-        if (isset($recording->playback->format) && !empty($recording->playback->format)) {
-            foreach ($recording->playback->format as $format) {
-                $playbackarray[(string) $format->type] = [
-                    'type' => (string) $format->type,
-                    'url' => trim((string) $format->url), 'length' => (string) $format->length
-                ];
-                // Add preview per format when existing.
-                if ($format->preview) {
-                    $playbackarray[(string) $format->type]['preview'] =
-                        self::parse_preview_images($format->preview);
-                }
+        foreach ($recording->playback->format as $format) {
+            $playbackarray[(string) $format->type] = [
+                'type' => (string) $format->type,
+                'url' => trim((string) $format->url), 'length' => (string) $format->length
+            ];
+            // Add preview per format when existing.
+            if ($format->preview) {
+                $playbackarray[(string) $format->type]['preview'] =
+                    self::parse_preview_images($format->preview);
             }
         }
-        
-        // FIX FOR JOININ.IR: If no standard playback format found, check metadata for custom playback URL
-        // Some BBB providers (like joinin.ir) put playback URLs in metadata instead of standard <playback> element
-        if (empty($playbackarray) && isset($recording->metadata)) {
-            $metadata = $recording->metadata;
-            $playback_url = null;
-            $duration = 0;
-            
-            // Check for joinin.ir specific metadata fields
-            if (isset($metadata->joinin_playrecurl)) {
-                $playback_url = trim((string) $metadata->joinin_playrecurl);
-            } else if (isset($metadata->playrecurl)) {
-                $playback_url = trim((string) $metadata->playrecurl);
-            }
-            
-            // Get duration from metadata
-            if (isset($metadata->joinin_recording_duration)) {
-                $duration = (int) $metadata->joinin_recording_duration * 1000; // Convert seconds to milliseconds
-            } else if (isset($recording->duration)) {
-                $duration = (int) $recording->duration * 1000;
-            } else if (isset($recording->recording_duration)) {
-                $duration = (int) $recording->recording_duration * 1000;
-            }
-            
-            // If we found a playback URL in metadata, create a standard playback format entry
-            if (!empty($playback_url)) {
-                $playbackarray['presentation'] = [
-                    'type' => 'presentation',
-                    'url' => $playback_url,
-                    'length' => (string) $duration
-                ];
-            }
-        }
-        
         // Add the metadata to the recordings array.
         $metadataarray =
             self::parse_recording_meta(get_object_vars($recording->metadata));

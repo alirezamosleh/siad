@@ -225,7 +225,8 @@ function(
             if (!isMedia) {
                 // Try to get the text value of the content.
                 // If that's not possible, we'll report it under the catch-all 'other media'.
-                var messagePreview = $(lastMessage.text).text();
+                // Use textContent to safely extract text without jQuery selector parsing.
+                var messagePreview = tmpElement.textContent || tmpElement.innerText || '';
                 if (messagePreview) {
                     // The text value of the message must have no html/script tags.
                     if (messagePreview.indexOf('<') == -1) {
@@ -606,10 +607,6 @@ function(
             return true;
         };
 
-        // Set the minimum height of the section to the height of the toggle. This
-        // smooths out the collapse animation.
-        var toggle = root.find(SELECTORS.TOGGLE);
-        root.css('min-height', toggle.outerHeight());
 
         root.on('show.bs.collapse', function() {
             setExpanded(root);

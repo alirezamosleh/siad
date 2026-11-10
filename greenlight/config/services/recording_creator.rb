@@ -59,7 +59,7 @@ class RecordingCreator
     new_recording.participants = @recording[:participants]
     new_recording.length = length
     new_recording.protectable = @recording[:protected].present? || new_recording.protectable
-    new_recording.recorded_at = @recording[:startTime]
+    new_recording.recorded_at = parse_time(@recording[:startTime]) || Time.current
     new_recording.save!
 
     create_formats(new_recording:)
@@ -100,26 +100,46 @@ class RecordingCreator
   def recording_length
     length = 0
     video_formats = %w[presentation video]
+    formats = @recording.dig(:playback, :format)
+    return length if formats.blank?
 
-    if @recording[:playback][:format].is_a?(Array)
-      @recording[:playback][:format].each do |formats|
-        length = formats[:length] if video_formats.include?(formats[:type])
+    if formats.is_a?(Array)
+      formats.each do |f|
+        length = f[:length] if video_formats.include?(f[:type])
       end
     else
-      length = @recording[:playback][:format][:length]
+      length = formats[:length] || 0
     end
     length
   end
 
   def create_formats(new_recording:)
-    if @recording[:playback][:format].is_a?(Array)
-      @recording[:playback][:format].each do |format|
+    formats = @recording.dig(:playback, :format)
+    return if formats.blank?
+
+    if formats.is_a?(Array)
+      formats.each do |format|
+        next if format.blank? || format[:url].blank?
         Format.find_or_create_by(recording_id: new_recording.id, recording_type: format[:type]).update(url: format[:url])
       end
     else
+      return if formats[:url].blank?
       Format.find_or_create_by(recording_id: new_recording.id,
-                               recording_type: @recording[:playback][:format][:type]).update(url: @recording[:playback][:format][:url])
+                               recording_type: formats[:type]).update(url: formats[:url])
     end
+  end
+
+  def parse_time(value)
+    return nil if value.blank?
+
+    if value.to_s.match?(/\A\d+\z/)
+      n = value.to_i
+      return Time.zone.at(n > 10_000_000_000 ? n / 1000.0 : n)
+    end
+
+    Time.zone.parse(value.to_s)
+  rescue ArgumentError, TypeError
+    nil
   end
 
   def visibility_for(publish:, protect:, list:)

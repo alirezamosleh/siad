@@ -5,7 +5,7 @@ module Api
     class RecordingsController < ApiController
       skip_before_action :ensure_authenticated, only: :recording_url
 
-      before_action :sync_recordings, only: %i[index recordings_count]
+      # Background container (recordings-sync) handles scheduled sync; avoid blocking web requests
       before_action :find_recording, only: %i[update update_visibility recording_url]
       before_action only: %i[destroy] do
         ensure_authorized('ManageRecordings', record_id: params[:id])

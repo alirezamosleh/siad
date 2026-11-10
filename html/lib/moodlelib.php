@@ -921,14 +921,23 @@ function html_is_blank($string) {
  * @param string|int|bool|null $value the value to set (without magic quotes),
  *               null to unset the value
  * @param string $plugin (optional) the plugin scope, default null
+ * @param boolean $log (optional) should this emit to the config log
  * @return bool true or exception
  */
-function set_config($name, $value, $plugin = null) {
+function set_config($name, $value, $plugin = null, bool $log = false) {
     global $CFG, $DB;
 
     // Redirect to appropriate handler when value is null.
     if ($value === null) {
-        return unset_config($name, $plugin);
+        return unset_config($name, $plugin, $log);
+    }
+
+    if ($log) {
+        $prev = get_config($plugin, $name);
+        if ($prev === false) {
+            $prev = null;
+        }
+        add_to_config_log($name, $prev, $value, $plugin);
     }
 
     // Set variables determining conditions and where to store the new config.
@@ -1086,10 +1095,19 @@ function get_config($plugin, $name = null) {
  *
  * @param string $name the key to set
  * @param string $plugin (optional) the plugin scope
+ * @param boolean $log (optional) should this emit to the config log
  * @return boolean whether the operation succeeded.
  */
-function unset_config($name, $plugin=null) {
+function unset_config($name, $plugin = null, bool $log = false) {
     global $CFG, $DB;
+
+    if ($log) {
+        $prev = get_config($plugin, $name);
+        if ($prev === false) {
+            $prev = null;
+        }
+        add_to_config_log($name, $prev, null, $plugin);
+    }
 
     if (empty($plugin)) {
         unset($CFG->$name);
@@ -1514,19 +1532,30 @@ function set_user_preference($name, $value, $user = null) {
         return true;
     }
 
-    if ($preference = $DB->get_record('user_preferences', array('userid' => $user->id, 'name' => $name))) {
-        if ($preference->value === $value and isset($user->preference[$name]) and $user->preference[$name] === $value) {
-            // Preference already set to this value.
-            return true;
-        }
-        $DB->set_field('user_preferences', 'value', $value, array('id' => $preference->id));
+    $retry = 0;
+    $saved = false;
 
-    } else {
-        $preference = new stdClass();
-        $preference->userid = $user->id;
-        $preference->name   = $name;
-        $preference->value  = $value;
-        $DB->insert_record('user_preferences', $preference);
+    while (!$saved && $retry++ < 2) {
+        if ($preference = $DB->get_record('user_preferences', ['userid' => $user->id, 'name' => $name])) {
+            if ($preference->value === $value && isset($user->preference[$name]) && $user->preference[$name] === $value) {
+                // Preference already set to this value.
+                return true;
+            }
+            $DB->set_field('user_preferences', 'value', $value, ['id' => $preference->id]);
+            $saved = true;
+        } else {
+            $preference = new stdClass();
+            $preference->userid = $user->id;
+            $preference->name   = $name;
+            $preference->value  = $value;
+            try {
+                $DB->insert_record('user_preferences', $preference);
+                $saved = true;
+            } catch (dml_write_exception $e) {
+                // We have an insert race, so just ignore and try again.
+                $saved = false;
+            }
+        }
     }
 
     // Update value in cache.
@@ -4103,15 +4132,17 @@ function complete_user_login($user, array $extrauserinfo = []) {
     // Allow plugins to callback as soon possible after user has completed login.
     di::get(\core\hook\manager::class)->dispatch(new \core_user\hook\after_login_completed());
 
-    // Check if the user is using a new browser or session (a new MoodleSession cookie is set in that case).
-    // If the user is accessing from the same IP, ignore everything (most of the time will be a new session in the same browser).
-    // Skip Web Service requests, CLI scripts, AJAX scripts, and request from the mobile app itself.
+    // Send a new login notification when the IP address has changed since the last login,
+    // unless the same user is logging in again (identified via the MOODLEID1_ cookie).
+    // Skip Web Service requests, CLI scripts, and environments that don't support cookies.
     $loginip = getremoteaddr();
     $isnewip = isset($SESSION->userpreviousip) && $SESSION->userpreviousip != $loginip;
     $isvalidenv = (!WS_SERVER && !CLI_SCRIPT && !NO_MOODLE_COOKIES) || PHPUNIT_TEST;
 
-    if (!empty($SESSION->isnewsessioncookie) && $isnewip && $isvalidenv && !\core_useragent::is_moodle_app()) {
+    $prevusername = get_moodle_cookie();
+    $issameuser = !empty($prevusername) && $prevusername == $USER->username;
 
+    if (!$issameuser && $isnewip && $isvalidenv) {
         $logintime = time();
         $ismoodleapp = false;
         $useragent = \core_useragent::get_user_agent_string();
@@ -6129,7 +6160,7 @@ function send_password_change_confirmation_email($user, $resetrecord) {
     foreach ($placeholders as $field => $value) {
         $data->{$field} = $value;
     }
-    $data->username  = $user->username;
+    $data->username  = s($user->username);
     $data->sitename  = format_string($site->fullname);
     $data->link      = $CFG->wwwroot .'/login/forgot_password.php?token='. $resetrecord->token;
     $data->admin     = generate_email_signoff();
@@ -8460,9 +8491,25 @@ function address_in_subnet($addr, $subnetstr, $checkallzeros = false) {
     if ($addr == '0.0.0.0' && !$checkallzeros) {
         return false;
     }
+
+    $addr = trim($addr);
+
+    // An IPv4-mapped IPv6 address (::ffff:x.x.x.x) is equivalent to its plain IPv4 form.
+    // Also test the unwrapped IPv4 form against the subnet list, so IPv4-notation rules apply
+    // (e.g. 127.0.0.0/8) without changing how $addr itself is matched against rules already
+    // expressed in IPv6 notation (e.g. ::ffff:127.0.0.0/104) below.
+    $packed = @inet_pton($addr);
+    if ($packed !== false && strlen($packed) === 16
+            && substr($packed, 0, 12) === "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff") {
+        $unwrapped = inet_ntop(substr($packed, 12));
+        if ($unwrapped !== false && address_in_subnet($unwrapped, $subnetstr, $checkallzeros)) {
+            return true;
+        }
+    }
+
     $subnets = explode(',', $subnetstr);
     $found = false;
-    $addr = trim($addr);
+
     $addr = cleanremoteaddr($addr, false); // Normalise.
     if ($addr === null) {
         return false;

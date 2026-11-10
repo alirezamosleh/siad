@@ -26,6 +26,7 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 require_once($CFG->dirroot . '/question/engine/tests/helpers.php');
+require_once($CFG->dirroot . '/question/type/ordering/question.php');
 
 /**
  * A test class used to test formulation_and_controls.
@@ -49,7 +50,22 @@ final class formulation_and_controls_test extends advanced_testcase {
      * @return void
      */
     public function test_export_for_template(array $answeritems, int $gradingtype, string $layouttype, array $expected): void {
-        global $PAGE;
+        global $OUTPUT, $PAGE;
+
+        $correct = $OUTPUT->pix_icon('i/grade_correct', get_string('correct', 'question'));
+        $partiallycorrect = $OUTPUT->pix_icon('i/grade_partiallycorrect', get_string('partiallycorrect', 'question'));
+        $incorrect = $OUTPUT->pix_icon('i/grade_incorrect', get_string('incorrect', 'question'));
+
+        foreach ($expected['answers'] as $key => $answer) {
+            if (array_key_exists('feedbackimage', $expected['answers'][$key])) {
+                $expected['answers'][$key]['feedbackimage'] = match ($expected['answers'][$key]['feedbackimage']) {
+                    'correct' => $correct,
+                    'partiallycorrect' => $partiallycorrect,
+                    'incorrect' => $incorrect,
+                    default => null
+                };
+            }
+        }
 
         $question = test_question_maker::make_question('ordering');
         $question->layouttype = $layouttype === 'horizontal' ? qtype_ordering_question::LAYOUT_HORIZONTAL :
@@ -93,13 +109,6 @@ final class formulation_and_controls_test extends advanced_testcase {
      * @return array
      */
     public static function export_for_template_provider(): array {
-        global $CFG, $OUTPUT;
-        require_once($CFG->dirroot . '/question/type/ordering/question.php');
-
-        $correct = $OUTPUT->pix_icon('i/grade_correct', get_string('correct', 'question'));
-        $partiallycorrect = $OUTPUT->pix_icon('i/grade_partiallycorrect', get_string('partiallycorrect', 'question'));
-        $incorrect = $OUTPUT->pix_icon('i/grade_incorrect', get_string('incorrect', 'question'));
-
         return [
             'Horizontal, correct and partially correct' => [
                 [13 => 'Modular', 14 => 'Object', 15 => 'Oriented', 17 => 'Learning', 16 => 'Dynamic', 18 => 'Environment'],
@@ -107,7 +116,7 @@ final class formulation_and_controls_test extends advanced_testcase {
                 'horizontal',
                 [
                     'readonly' => false,
-                    'questiontext' => 'Put these words in order',
+                    'questiontext' => '<div class="clearfix">Put these words in order</div>',
                     'responsename' => 'q0:_response_0',
                     'responseid' => 'id_q0_response_0',
                     'value' => 'ordering_item_ac5fc041de63c8c5b34d0aabb96cf33d,' .
@@ -127,37 +136,37 @@ final class formulation_and_controls_test extends advanced_testcase {
                             'scoreclass' => 'correct',
                             'id' => 'ordering_item_' . md5('Modular'),
                             'answertext' => "Modular",
-                            'feedbackimage' => $correct,
+                            'feedbackimage' => 'correct',
                         ],
                         [
                             'scoreclass' => 'correct',
                             'id' => 'ordering_item_' . md5('Object'),
                             'answertext' => "Object",
-                            'feedbackimage' => $correct,
+                            'feedbackimage' => 'correct',
                         ],
                         [
                             'scoreclass' => 'correct',
                             'id' => 'ordering_item_' . md5('Oriented'),
                             'answertext' => "Oriented",
-                            'feedbackimage' => $correct,
+                            'feedbackimage' => 'correct',
                         ],
                         [
                             'scoreclass' => 'partial66',
                             'id' => 'ordering_item_' . md5('Learning'),
                             'answertext' => "Learning",
-                            'feedbackimage' => $partiallycorrect,
+                            'feedbackimage' => 'partiallycorrect',
                         ],
                         [
                             'scoreclass' => 'partial66',
                             'id' => 'ordering_item_' . md5('Dynamic'),
                             'answertext' => "Dynamic",
-                            'feedbackimage' => $partiallycorrect,
+                            'feedbackimage' => 'partiallycorrect',
                         ],
                         [
                             'scoreclass' => 'correct',
                             'id' => 'ordering_item_' . md5('Environment'),
                             'answertext' => "Environment",
-                            'feedbackimage' => $correct,
+                            'feedbackimage' => 'correct',
                         ],
                     ],
                 ],
@@ -168,7 +177,7 @@ final class formulation_and_controls_test extends advanced_testcase {
                 'vertical',
                 [
                     'readonly' => false,
-                    'questiontext' => 'Put these words in order',
+                    'questiontext' => '<div class="clearfix">Put these words in order</div>',
                     'responsename' => 'q0:_response_0',
                     'responseid' => 'id_q0_response_0',
                     'value' => 'ordering_item_497031794414a552435f90151ac3b54b,' .
@@ -188,37 +197,37 @@ final class formulation_and_controls_test extends advanced_testcase {
                             'scoreclass' => 'incorrect',
                             'id' => 'ordering_item_' . md5('Object'),
                             'answertext' => "Object",
-                            'feedbackimage' => $incorrect,
+                            'feedbackimage' => 'incorrect',
                         ],
                         [
                             'scoreclass' => 'incorrect',
                             'id' => 'ordering_item_' . md5('Dynamic'),
                             'answertext' => "Dynamic",
-                            'feedbackimage' => $incorrect,
+                            'feedbackimage' => 'incorrect',
                         ],
                         [
                             'scoreclass' => 'incorrect',
                             'id' => 'ordering_item_' . md5('Modular'),
                             'answertext' => "Modular",
-                            'feedbackimage' => $incorrect,
+                            'feedbackimage' => 'incorrect',
                         ],
                         [
                             'scoreclass' => 'incorrect',
                             'id' => 'ordering_item_' . md5('Learning'),
                             'answertext' => "Learning",
-                            'feedbackimage' => $incorrect,
+                            'feedbackimage' => 'incorrect',
                         ],
                         [
                             'scoreclass' => 'incorrect',
                             'id' => 'ordering_item_' . md5('Environment'),
                             'answertext' => "Environment",
-                            'feedbackimage' => $incorrect,
+                            'feedbackimage' => 'incorrect',
                         ],
                         [
                             'scoreclass' => 'incorrect',
                             'id' => 'ordering_item_' . md5('Oriented'),
                             'answertext' => "Oriented",
-                            'feedbackimage' => $incorrect,
+                            'feedbackimage' => 'incorrect',
                         ],
                     ],
                 ],
@@ -229,7 +238,7 @@ final class formulation_and_controls_test extends advanced_testcase {
                 'horizontal',
                 [
                     'readonly' => false,
-                    'questiontext' => 'Put these words in order',
+                    'questiontext' => '<div class="clearfix">Put these words in order</div>',
                     'responsename' => 'q0:_response_0',
                     'responseid' => 'id_q0_response_0',
                     'value' => 'ordering_item_ac5fc041de63c8c5b34d0aabb96cf33d,' .
@@ -249,37 +258,37 @@ final class formulation_and_controls_test extends advanced_testcase {
                             'scoreclass' => 'correct',
                             'id' => 'ordering_item_' . md5('Modular'),
                             'answertext' => "Modular",
-                            'feedbackimage' => $correct,
+                            'feedbackimage' => 'correct',
                         ],
                         [
                             'scoreclass' => 'correct',
                             'id' => 'ordering_item_' . md5('Object'),
                             'answertext' => "Object",
-                            'feedbackimage' => $correct,
+                            'feedbackimage' => 'correct',
                         ],
                         [
                             'scoreclass' => 'correct',
                             'id' => 'ordering_item_' . md5('Oriented'),
                             'answertext' => "Oriented",
-                            'feedbackimage' => $correct,
+                            'feedbackimage' => 'correct',
                         ],
                         [
                             'scoreclass' => 'correct',
                             'id' => 'ordering_item_' . md5('Dynamic'),
                             'answertext' => "Dynamic",
-                            'feedbackimage' => $correct,
+                            'feedbackimage' => 'correct',
                         ],
                         [
                             'scoreclass' => 'correct',
                             'id' => 'ordering_item_' . md5('Learning'),
                             'answertext' => "Learning",
-                            'feedbackimage' => $correct,
+                            'feedbackimage' => 'correct',
                         ],
                         [
                             'scoreclass' => 'correct',
                             'id' => 'ordering_item_' . md5('Environment'),
                             'answertext' => "Environment",
-                            'feedbackimage' => $correct,
+                            'feedbackimage' => 'correct',
                         ],
                     ],
                 ],

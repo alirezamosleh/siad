@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  fastapi_auth:
+    build: .
+    container_name: moodle_fastapi_auth
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    extra_hosts:
+      # Allows connecting to host MariaDB (e.g., host.docker.internal)
+      - "host.docker.internal:host-gateway"

@@ -410,9 +410,7 @@ $message-day-color: color-yiq($message-app-bg) !default;
             display: flex;
             align-items: center;
         }
-        .footer-container [data-region="view-overview"] {
-            display: none;
-        }
+
         .overflow-y {
             overflow-y: unset;
         }
@@ -542,6 +540,9 @@ $message-day-color: color-yiq($message-app-bg) !default;
             &:hover {
                 color: $white;
                 background-color: $primary;
+                .message-icon-forward {
+                    color: inherit !important; // stylelint-disable-line declaration-no-important
+                }
                 .badge-primary {
                     background-color: $white;
                     color: $primary;
@@ -607,7 +608,7 @@ $message-day-color: color-yiq($message-app-bg) !default;
         color: $message-day-color;
     }
     .lazy-load-list {
-        overflow-y: auto;
+        overflow-y: inherit;
     }
 }
 #page-message-index {

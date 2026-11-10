@@ -127,6 +127,7 @@ class behat_partial_named_selector extends \Behat\Mink\Selector\PartialNamedSele
         'table' => 'table',
         'table_row' => 'table_row',
         'text' => 'text',
+        'toast_message' => 'toast_message',
         'xpath_element' => 'xpath_element',
         'form_row' => 'form_row',
         'autocomplete_selection' => 'autocomplete_selection',
@@ -154,7 +155,7 @@ XPATH
     descendant::*[
         contains(concat(' ', normalize-space(@class), ' '), ' dropdown-toggle ')
             and
-        (contains(normalize-space(.), %locator%) or descendant::*[%titleMatch%])
+        (contains(normalize-space(.), %locator%) or descendant::*[%titleMatch%] or %ariaLabelMatch%)
     ]
 ]
 XPATH
@@ -183,7 +184,9 @@ XPATH
 .//div[
         contains(concat(' ', normalize-space(@class), ' '), ' modal-content ')
             and
-        normalize-space(descendant::*[self::h4 or self::h5][contains(concat(' ', normalize-space(@class), ' '), ' modal-title ')]) = %locator%
+        normalize-space(descendant::*[
+            self::h1 or self::h2 or self::h3 or self::h4 or self::h5 or self::h6
+        ][contains(concat(' ', normalize-space(@class), ' '), ' modal-title ')]) = %locator%
     ]
         |
 .//div[
@@ -280,6 +283,9 @@ XPATH
         , 'text' => <<<XPATH
 .//*[contains(., %locator%) and not(.//*[contains(., %locator%)])]
 XPATH
+    , 'toast_message' => <<<XPATH
+        .//*[contains(concat(' ', normalize-space(@class), ' '), ' toast-message ') and %exactTagTextMatch%]
+XPATH
         , 'form_row' => <<<XPATH
 .//*[contains(concat(' ', @class, ' '), ' col-form-label ')]
     [normalize-space(.)= %locator%]
@@ -338,7 +344,7 @@ XPATH
 XPATH
         ,
             'select_menu' => <<<XPATH
-//*[@role='combobox'][@aria-labelledby = //label[contains(normalize-space(string(.)), %locator%)]/@id]
+//*[@role='combobox'][@aria-labelledby = //span[contains(normalize-space(string(.)), %locator%)]/@id]
 XPATH
         ,
         ],

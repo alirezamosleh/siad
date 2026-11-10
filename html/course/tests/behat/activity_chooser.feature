@@ -38,8 +38,22 @@ Feature: Display and choose from the available activities in course
   Scenario: The teacher can choose to add an activity from the activity summary in the activity chooser
     Given I click on "Add an activity or resource" "button" in the "New section" "section"
     When I click on "Information about the Assignment activity" "button" in the "Add an activity or resource" "dialogue"
-    When I click on "Add a new Assignment" "link" in the "help" "core_course > Activity chooser screen"
+    And I click on "Add a new Assignment" "link" in the ".modal-footer" "css_element"
     Then I should see "New Assignment"
+
+  # Heading order lives in axe-core's cat.semantics tag, which is asserted here on its own rather
+  # than on top of the default tag set: the chooser option cards have a pre-existing target-size
+  # violation, which is a separate concern from the heading structure this scenario covers.
+  @accessibility
+  Scenario: The activity chooser dialogue has a valid heading structure
+    Given I click on "Add an activity or resource" "button" in the "New section" "section"
+    # The title is a semantic h2. Its font size is set by a utility class, which is left out of
+    # the selector here so that the assertion does not depend on presentation.
+    Then "h2.modal-title" "css_element" should exist in the "Add an activity or resource" "dialogue"
+    And the "Add an activity or resource" "dialogue" should meet "cat.semantics" accessibility standards
+    # The summary screen renders the activity name as a heading below the dialogue title.
+    And I click on "Information about the Assignment activity" "button" in the "Add an activity or resource" "dialogue"
+    And the "Add an activity or resource" "dialogue" should meet "cat.semantics" accessibility standards
 
   Scenario: Show summary
     Given I click on "Add an activity or resource" "button" in the "New section" "section"
@@ -57,8 +71,8 @@ Feature: Display and choose from the available activities in course
     Given I click on "Add an activity or resource" "button" in the "New section" "section"
     When I click on "Information about the Assignment activity" "button" in the "modules" "core_course > Activity chooser screen"
     And I should see "The assignment activity module enables a teacher to communicate tasks, collect work and provide grades and feedback." in the "help" "core_course > Activity chooser screen"
-    And I should see "Back" in the "help" "core_course > Activity chooser screen"
-    When I click on "Back" "button" in the "help" "core_course > Activity chooser screen"
+    And I should see "Back" in the ".modal-footer" "css_element"
+    When I click on "Back" "button" in the ".modal-footer" "css_element"
     Then "modules" "core_course > Activity chooser screen" should be visible
     And "help" "core_course > Activity chooser screen" should not be visible
     And "Back" "button" should not exist in the "modules" "core_course > Activity chooser screen"
@@ -67,7 +81,7 @@ Feature: Display and choose from the available activities in course
     And I am on "C2" course homepage with editing mode on
     And I click on "Add an activity or resource" "button" in the "13 January - 19 January" "section"
     And I click on "Information about the Assignment activity" "button" in the "Add an activity or resource" "dialogue"
-    And I click on "Back" "button" in the "help" "core_course > Activity chooser screen"
+    And I click on "Back" "button" in the ".modal-footer" "css_element"
     And "modules" "core_course > Activity chooser screen" should be visible
     And "help" "core_course > Activity chooser screen" should not be visible
     And "Back" "button" should not exist in the "modules" "core_course > Activity chooser screen"

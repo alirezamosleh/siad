@@ -23,8 +23,8 @@ module Api
 
       before_action :find_room, only: %i[show update destroy recordings recordings_processing purge_presentation public_show public_recordings]
 
-      # JoinIN: refresh last_session from getSessions before rooms dashboard renders
-      before_action :sync_room_sessions, only: %i[index show]
+      # JoinIN: refresh single room session/recordings on specific room view
+      before_action :sync_room_sessions, only: %i[show]
       before_action :sync_room_recordings, only: :recordings
 
       before_action only: %i[create] do
@@ -165,9 +165,9 @@ module Api
       private
 
       def sync_room_sessions
-        RecordingCatalogSync.new(user: current_user, provider: current_provider, recordings: false).call
+        RecordingCatalogSync.new(user: current_user, provider: current_provider, recordings: false).sync(@room) if @room
       rescue StandardError => e
-        Rails.logger.warn("Rooms session sync failed: #{e.class}: #{e.message}")
+        Rails.logger.warn("Room session sync failed: #{e.class}: #{e.message}")
       end
 
       def sync_room_recordings

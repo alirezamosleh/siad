@@ -260,6 +260,8 @@ if (!empty($instanceid) && !empty($roleid)) {
 
     // Get record from sql_internal_table_reader and merge with records got from legacy log (if needed).
     if (!$onlyuselegacyreader) {
+        $anonymoussql = !has_capability('moodle/site:viewanonymousevents', $context) ? 'AND l.anonymous = 0' : '';
+
         $sql = "SELECT ra.userid, $usernamefields, u.idnumber, COUNT(DISTINCT l.timecreated) AS count
                   FROM {user} u
                   JOIN {role_assignments} ra ON u.id = ra.userid AND ra.contextid $relatedctxsql AND ra.roleid = :roleid
@@ -268,7 +270,7 @@ if (!empty($instanceid) && !empty($roleid)) {
                      ON l.contextinstanceid = :instanceid
                        AND l.timecreated > :timefrom" . $crudsql ."
                        AND l.edulevel = :edulevel
-                       AND l.anonymous = 0
+                       " . $anonymoussql . "
                        AND l.contextlevel = :contextlevel
                        AND (l.origin = 'web' OR l.origin = 'ws')
                        AND l.userid = ra.userid";
@@ -388,11 +390,7 @@ if (!empty($instanceid) && !empty($roleid)) {
         echo '</div>'."\n";
         echo '</form>'."\n";
 
-        $options = new stdClass();
-        $options->courseid = $course->id;
-        $options->noteStateNames = note_get_state_names();
-        $options->stateHelpIcon = $OUTPUT->help_icon('publishstate', 'notes');
-        $PAGE->requires->js_call_amd('report_participation/participants', 'init', [$options]);
+        $PAGE->requires->js_call_amd('report_participation/participants', 'init');
     }
     echo '</div>'."\n";
 }

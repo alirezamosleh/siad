@@ -71,7 +71,7 @@ class core_course_management_renderer extends plugin_renderer_base {
         final: true,
     )]
     public function management_heading() {
-        \core\deprecation::emit_deprecation_if_present([self::class, __FUNCTION__]);
+        \core\deprecation::emit_deprecation([self::class, __FUNCTION__]);
     }
 
     /**
@@ -187,7 +187,7 @@ class core_course_management_renderer extends plugin_renderer_base {
             $a->parentcategory = $parent->get_formatted_name();
             $textlabel = get_string('categorysubcategoryof', 'moodle', $a);
         }
-        $courseicon = $this->output->pix_icon('i/course', get_string('courses'));
+        $courseicon = $this->output->pix_icon('i/course', get_string('courses'), 'core', ['class' => 'ps-1']);
         $bcatinput = array(
                 'id' => 'categorylistitem' . $category->id,
                 'type' => 'checkbox',
@@ -261,9 +261,9 @@ class core_course_management_renderer extends plugin_renderer_base {
             $textattributes['aria-label'] = $textlabel;
         }
         $html .= html_writer::link($viewcaturl, $text, $textattributes);
-        $html .= html_writer::start_div('float-end d-flex');
+        $html .= html_writer::start_div('float-end d-flex flex-wrap justify-content-end');
         if ($category->idnumber) {
-            $html .= html_writer::tag('span', s($category->idnumber), array('class' => 'text-muted idnumber'));
+            $html .= html_writer::tag('span', s($category->idnumber), ['class' => 'text-muted text-break idnumber']);
         }
         if ($hasactions) {
             $html .= $this->category_listitem_actions($category, $actions);
@@ -343,6 +343,10 @@ class core_course_management_renderer extends plugin_renderer_base {
             $actions = \core_course\management\helper::get_category_listitem_actions($category);
         }
         $menu = new action_menu();
+        $label = get_string('actionsmenu');
+        $actionicon = $this->output->pix_icon('t/edit_menu', '') . html_writer::span($label, 'sr-only');
+        $menu->set_menu_trigger($actionicon, 'iconsmall actionmenu');
+        $menu->triggerattributes['title'] = $label;
         $menu->attributes['class'] .= ' category-item-actions item-actions';
         $hasitems = false;
         foreach ($actions as $key => $action) {
@@ -635,10 +639,14 @@ class core_course_management_renderer extends plugin_renderer_base {
         $html .= html_writer::link(
             $viewcourseurl, $text, array('class' => 'text-break col ps-0 mb-2 coursename aalink')
         );
-        $html .= html_writer::start_div('flex-shrink-0 ms-auto');
         if ($course->idnumber) {
-            $html .= html_writer::tag('span', s($course->idnumber), array('class' => 'text-muted idnumber'));
+            $html .= html_writer::tag(
+                'span',
+                s($course->idnumber),
+                ['class' => 'text-muted text-break align-self-baseline idnumber']
+            );
         }
+        $html .= html_writer::start_div('flex-shrink-0 ms-auto');
         $html .= $this->course_listitem_actions($category, $course);
         $html .= html_writer::end_div();
         $html .= html_writer::end_div();
@@ -957,6 +965,9 @@ class core_course_management_renderer extends plugin_renderer_base {
         $attributes = array();
         if (!is_null($id)) {
             $attributes['id'] = $id;
+            // The id is the target of an accessible skip link (see accessible_skipto_links()).
+            // Make it focusable so activating the skip link moves keyboard focus here.
+            $attributes['tabindex'] = -1;
         }
         return html_writer::start_div($class . " grid_column_start", $attributes);
     }
@@ -1214,9 +1225,9 @@ class core_course_management_renderer extends plugin_renderer_base {
         $html .= html_writer::end_div();
         $html .= html_writer::link($viewcourseurl, $text, array('class' => 'float-start coursename aalink'));
         $html .= html_writer::tag('span', $categoryname, array('class' => 'float-start ms-3 text-muted'));
-        $html .= html_writer::start_div('float-end');
+        $html .= html_writer::start_div('float-end d-flex flex-wrap justify-content-end');
         $html .= $this->search_listitem_actions($course);
-        $html .= html_writer::tag('span', s($course->idnumber), array('class' => 'text-muted idnumber'));
+        $html .= html_writer::tag('span', s($course->idnumber), ['class' => 'text-muted text-break idnumber']);
         $html .= html_writer::end_div();
         $html .= html_writer::end_div();
         $html .= html_writer::end_tag('li');
@@ -1286,7 +1297,7 @@ class core_course_management_renderer extends plugin_renderer_base {
         final: true,
     )]
     public function course_search_form() {
-        \core\deprecation::emit_deprecation_if_present([self::class, __FUNCTION__]);
+        \core\deprecation::emit_deprecation([self::class, __FUNCTION__]);
     }
 
     /**
@@ -1298,7 +1309,7 @@ class core_course_management_renderer extends plugin_renderer_base {
      * @return string
      */
     public function accessible_skipto_links($displaycategorylisting, $displaycourselisting, $displaycoursedetail) {
-        $html = html_writer::start_div('skiplinks accesshide');
+        $html = html_writer::start_div('skiplinks');
         $url = new moodle_url($this->page->url);
         if ($displaycategorylisting) {
             $url->set_anchor('category-listing');

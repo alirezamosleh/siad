@@ -392,7 +392,7 @@ class core_date {
             'Argentina Standard Time' => 'America/Argentina/Buenos_Aires',
             'SA Eastern Standard Time' => 'America/Cayenne',
             'S.A. Eastern Standard Time' => 'America/Cayenne',
-            'Greenland Standard Time' => 'America/Godthab',
+            'Greenland Standard Time' => 'America/Nuuk',
             'Montevideo Standard Time' => 'America/Montevideo',
             'Bahia Standard Time' => 'America/Bahia',
             'Azores Standard Time' => 'Atlantic/Azores',
@@ -412,7 +412,7 @@ class core_date {
             'Egypt Standard Time' => 'Africa/Cairo',
             'Syria Standard Time' => 'Asia/Damascus',
             'South Africa Standard Time' => 'Africa/Johannesburg',
-            'FLE Standard Time' => 'Europe/Kiev',
+            'FLE Standard Time' => 'Europe/Kyiv',
             'Turkey Standard Time' => 'Europe/Istanbul',
             'Israel Standard Time' => 'Asia/Jerusalem',
             'Kaliningrad Standard Time' => 'Europe/Kaliningrad',
@@ -680,7 +680,7 @@ class core_date {
         // Legacy Moodle half an hour offsets - pick any city nearby, ideally without DST.
         self::$badzones['4.5'] = 'Asia/Kabul';
         self::$badzones['5.5'] = 'Asia/Kolkata';
-        self::$badzones['6.5'] = 'Asia/Rangoon';
+        self::$badzones['6.5'] = 'Asia/Yangon';
         self::$badzones['9.5'] = 'Australia/Darwin';
 
         // Remove bad zones that are elsewhere.
@@ -819,7 +819,17 @@ class core_date {
           $calendar = IntlGregorianCalendar::createInstance($intltz);
           $calendar->setGregorianChange(PHP_INT_MIN);
 
-          return (new IntlDateFormatter($locale, $date_type, $time_type, $intltz, $calendar, $pattern))->format($timestamp);
+          // We need to account for invalid locales here in recent PHP versions, and ensure we catch errors and switch
+          // back to a default value where an invalid locale is provided.
+          try {
+              $formatter = new IntlDateFormatter($locale, $date_type, $time_type, $intltz, $calendar, $pattern);
+              $result = $formatter->format($timestamp);
+          } catch (Error $e) {
+              $formatter = new IntlDateFormatter(null, $date_type, $time_type, $intltz, $calendar, $pattern);
+              $result = $formatter->format($timestamp);
+          }
+
+          return $result;
         };
 
         // Same order as https://www.php.net/manual/en/function.strftime.php

@@ -1,5 +1,133 @@
 # core (subsystem) Upgrade notes
 
+## 4.5.14
+
+### Added
+
+- A new Behat step `I set the focus on the "<element>" "<selector>"` has been added to move keyboard focus onto an element without activating it.
+
+  For more information see [MDL-84065](https://tracker.moodle.org/browse/MDL-84065)
+
+### Changed
+
+- The title of a modal dialogue rendered by the `core/modal` template is now an `<h2>` element instead of an `<h5>`, so that dialogue titles no longer break the page's heading hierarchy for assistive technology users.
+
+  The element carries the Bootstrap `h5` typography utility class, so the title's appearance is unchanged.
+
+  If your plugin renders headings inside modal dialogue content, set their levels relative to this `<h2>` (i.e. start at `<h3>`) so that the heading structure remains correctly nested. Headings that were previously nested beneath the old `<h5>` will now skip levels. If your plugin renders its own modal header markup, or overrides the `header` block of the `core/modal` template, apply the same `<h2 class="modal-title h5">` pattern.
+
+  For more information see [MDL-75699](https://tracker.moodle.org/browse/MDL-75699)
+
+## 4.5.13
+
+### Changed
+
+- The `search` landmark role in the `core/search_input_auto` template is enclosed within a `searchrole` Mustache block so that templates that use this template can override and remove the `search` landmark role when deemed unnecessary.
+
+  For more information see [MDL-88833](https://tracker.moodle.org/browse/MDL-88833)
+
+## 4.5.11
+
+### Added
+
+- When creating upgrade notes, the issue number will be inferred from the current Git branch name by default
+
+  For more information see [MDL-87100](https://tracker.moodle.org/browse/MDL-87100)
+- There is a new Behat `toast_message` named selector to more easily assert the presence of Toast messages on the page
+
+  For more information see [MDL-87443](https://tracker.moodle.org/browse/MDL-87443)
+- The `core/toast` JS module now accepts a `visuallyHidden` configuration parameter to render visually hidden toast messages for screen reader users.
+
+  For more information see [MDL-87993](https://tracker.moodle.org/browse/MDL-87993)
+
+## 4.5.9
+
+### Changed
+
+- `\core\output\core_renderer::confirm()`'s `$displayoptions` parameter now also accepts a `headinglevel` option that developers can use to specify the heading level of the confirmation's heading. If not specified, the confirmation heading will be rendered in an `h4` tag.
+
+  For more information see [MDL-87694](https://tracker.moodle.org/browse/MDL-87694)
+
+## 4.5.8
+
+### Changed
+
+- The Hook Manager now uses localcache instead of caching via MUC.
+
+  For more information see [MDL-87107](https://tracker.moodle.org/browse/MDL-87107)
+
+### Fixed
+
+- `restore_qtype_plugin::unset_excluded_fields` now returns the modified questiondata structure,
+  in order to support structures that contain arrays.
+  If your qtype plugin overrides `restore_qtype_plugin::remove_excluded_question_data` without
+  calling the parent method, you may need to modify your overridden method to use the returned
+  value.
+
+  For more information see [MDL-85975](https://tracker.moodle.org/browse/MDL-85975)
+- When responding to pcntl signals, call existing signal handlers.
+
+  For more information see [MDL-87079](https://tracker.moodle.org/browse/MDL-87079)
+
+## 4.5.7
+
+### Added
+
+- The Behat `::execute()` method now accepts an array-style callable in addition to the string `classname::method` format.
+
+  The following formats are now accepted:
+
+  ```php
+  // String format:
+  $this->execute('behat_general::i_click_on', [...]);
+
+  // Array format:
+  $this->execute([behat_general::class,' i_click_on'], [...]);
+  ```
+
+  For more information see [MDL-86231](https://tracker.moodle.org/browse/MDL-86231)
+- The `\externallib_advanced_testcase` has been replaced by `\core_external\tests\externallib_testcase` and is now autoloadable.
+
+  For more information see [MDL-86283](https://tracker.moodle.org/browse/MDL-86283)
+
+## 4.5.6
+
+### Added
+
+- Add a new method has_valid_group in \core\report_helper that will return true or false depending if the user has a valid group. This is mainly false in case the user is not in any group in SEPARATEGROUPS. Used in report_log and report_loglive
+
+  For more information see [MDL-84464](https://tracker.moodle.org/browse/MDL-84464)
+
+### Changed
+
+- The `\core\attribute\deprecated` attribute constructor `$replacement` parameter now defaults to null, and can be omitted
+
+  For more information see [MDL-84531](https://tracker.moodle.org/browse/MDL-84531)
+- Added a new `\core\deprecation::emit_deprecation()` method which should be used in places where a deprecation is known to occur. This method will throw debugging if no deprecation notice was found, for example:
+  ```php
+  public function deprecated_method(): void {
+      \core\deprecation::emit_deprecation([self::class, __FUNCTION__]);
+  }
+  ```
+
+  For more information see [MDL-85897](https://tracker.moodle.org/browse/MDL-85897)
+
+## 4.5.5
+
+### Added
+
+- - Added is_site_registered_in_hub method in lib/classes/hub/api.php to
+    check if the site is registered or not.
+  - Added get_secret method in lib/classes/hub/registration.php to get site's secret.
+
+  For more information see [MDL-83448](https://tracker.moodle.org/browse/MDL-83448)
+- Added a new optional param to adhoc_task_failed and scheduled_task_failed to allow skipping log finalisation when called from a separate task.
+
+  For more information see [MDL-84442](https://tracker.moodle.org/browse/MDL-84442)
+- There is a new `core/page_title` Javascript module for manipulating the current page title
+
+  For more information see [MDL-84804](https://tracker.moodle.org/browse/MDL-84804)
+
 ## 4.5.4
 
 ### Added

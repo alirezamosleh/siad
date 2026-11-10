@@ -782,16 +782,17 @@ function move_question_set_references(int $oldcategoryid, int $newcatgoryid,
     if ($delete || $oldcontextid !== $newcontextid) {
         $setreferences = $DB->get_recordset('question_set_references', ['questionscontextid' => $oldcontextid]);
         foreach ($setreferences as $setreference) {
-            $filter = json_decode($setreference->filtercondition);
-            if (isset($filter->questioncategoryid)) {
-                if ((int)$filter->questioncategoryid === $oldcategoryid) {
-                    $setreference->questionscontextid = $newcontextid;
-                    if ($oldcategoryid !== $newcatgoryid) {
-                        $filter->questioncategoryid = $newcatgoryid;
-                        $setreference->filtercondition = json_encode($filter);
-                    }
-                    $DB->update_record('question_set_references', $setreference);
+            $filter = json_decode($setreference->filtercondition, true);
+            if (isset($filter['questioncategoryid'])) {
+                $filter = question_reference_manager::convert_legacy_set_reference_filter_condition($filter);
+            }
+            if ((int)$filter['filter']['category']['values'][0] === $oldcategoryid) {
+                $setreference->questionscontextid = $newcontextid;
+                if ($oldcategoryid !== $newcatgoryid) {
+                    $filter['filter']['category']['values'][0] = $newcatgoryid;
+                    $setreference->filtercondition = json_encode($filter);
                 }
+                $DB->update_record('question_set_references', $setreference);
             }
         }
         $setreferences->close();
@@ -1945,7 +1946,7 @@ function question_page_type_list($pagetype, $parentcontext, $currentcontext): ar
         'question-export' => get_string('page-question-export', 'question'),
         'question-import' => get_string('page-question-import', 'question')
     ];
-    if ($currentcontext->contextlevel == CONTEXT_COURSE) {
+    if ($currentcontext && $currentcontext->contextlevel == CONTEXT_COURSE) {
         require_once($CFG->dirroot . '/course/lib.php');
         return array_merge(course_page_type_list($pagetype, $parentcontext, $currentcontext), $types);
     } else {

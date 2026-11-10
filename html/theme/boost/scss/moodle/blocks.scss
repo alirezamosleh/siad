@@ -30,6 +30,12 @@
     .dropdown-toggle::after {
         display: none;
     }
+    .dropdown-menu {
+        max-width: 500px;
+        .dropdown-item {
+            @include text-truncate;
+        }
+    }
 }
 
 $blocks-column-width: 360px !default;
@@ -200,6 +206,10 @@ $blocks-plus-gutter: $blocks-column-width + ( $grid-gutter-width * 0.5 );
         .paging-bar-container {
             margin-top: 0;
         }
+    }
+    // Reset the negative margin in editing mode so the pagination controls do not obscure the block's move and action controls.
+    .editing & .paging-bar-container {
+        margin-top: 0;
     }
 }
 #block-region-side-pre {

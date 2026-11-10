@@ -536,6 +536,9 @@ abstract class repository implements cacheable_object {
     /** @var bool true if the super construct is called, otherwise false. */
     public $super_called;
 
+    /** @var array List of file ids currently being synced, to avoid endless recursion */
+    protected static $syncfileids = [];
+
     /**
      * Constructor
      *
@@ -1655,7 +1658,7 @@ abstract class repository implements cacheable_object {
         if (empty($filename)) {
             $filename = 'file';
         }
-        return sprintf('%s/%s', make_request_directory(), $filename);
+        return sprintf('%s/%s', make_request_directory(), clean_param($filename, PARAM_FILE));
     }
 
     /**
@@ -2529,7 +2532,7 @@ abstract class repository implements cacheable_object {
         if ($file = $fs->get_file($user_context->id, 'user', 'draft', $itemid, $filepath, $filename)) {
             if ($tempfile = $fs->get_file($user_context->id, 'user', 'draft', $itemid, $newfilepath, $newfilename)) {
                 // Remember original file source field.
-                $source = @unserialize($file->get_source());
+                $source = unserialize_object((string) $file->get_source());
                 // Remember the original sortorder.
                 $sortorder = $file->get_sortorder();
                 if ($tempfile->is_external_file()) {
@@ -2544,9 +2547,7 @@ abstract class repository implements cacheable_object {
                 $newfile = $fs->create_file_from_storedfile(array('filepath'=>$filepath, 'filename'=>$filename), $tempfile);
                 // Preserve original file location (stored in source field) for handling references
                 if (isset($source->original)) {
-                    if (!($newfilesource = @unserialize($newfile->get_source()))) {
-                        $newfilesource = new stdClass();
-                    }
+                    $newfilesource = unserialize_object((string) $newfile->get_source());
                     $newfilesource->original = $source->original;
                     $newfile->set_source(serialize($newfilesource));
                 }
@@ -2595,10 +2596,14 @@ abstract class repository implements cacheable_object {
                 if ($fs->file_exists($usercontext->id, 'user', 'draft', $draftid, $updatedata['filepath'], $updatedata['filename'])) {
                     throw new moodle_exception('fileexists', 'repository');
                 }
-                if (($filesource = @unserialize($file->get_source())) && isset($filesource->original)) {
+
+                // Unset original so the references are not shown any more.
+                $filesource = unserialize_object((string) $file->get_source());
+                if (isset($filesource->original)) {
                     unset($filesource->original);
                     $file->set_source(serialize($filesource));
                 }
+
                 $file->rename($updatedata['filepath'], $updatedata['filename']);
                 // timemodified is updated only when file is renamed and not updated when file is moved.
                 $filemodified = $filemodified || ($updatedata['filename'] !== $filename);
@@ -2641,11 +2646,14 @@ abstract class repository implements cacheable_object {
             foreach ($files as $f) {
                 if (preg_match("|^$xfilepath|", $f->get_filepath())) {
                     $path = preg_replace("|^$xfilepath|", $updatedata['filepath'], $f->get_filepath());
-                    if (($filesource = @unserialize($f->get_source())) && isset($filesource->original)) {
-                        // unset original so the references are not shown any more
+
+                    // Unset original so the references are not shown any more.
+                    $filesource = unserialize_object((string) $f->get_source());
+                    if (isset($filesource->original)) {
                         unset($filesource->original);
                         $f->set_source(serialize($filesource));
                     }
+
                     $f->rename($path, $f->get_filename());
                     if ($filemodified && $f->get_filepath() === $updatedata['filepath'] && $f->get_filename() === $filename) {
                         $f->set_timemodified(time());
@@ -2759,14 +2767,29 @@ abstract class repository implements cacheable_object {
             if ($file->get_referencelastsync()) {
                 return false;
             }
-            $fs = get_file_storage();
-            $params = file_storage::unpack_reference($file->get_reference(), true);
-            if (!is_array($params) || !($storedfile = $fs->get_file($params['contextid'],
-                    $params['component'], $params['filearea'], $params['itemid'], $params['filepath'],
-                    $params['filename']))) {
-                $file->set_missingsource();
-            } else {
-                $file->set_synchronized($storedfile->get_contenthash(), $storedfile->get_filesize(), 0, $storedfile->get_timemodified());
+
+            if (in_array($file->get_id(), self::$syncfileids)) {
+                throw new \coding_exception('File references itself: ' . $file->get_id());
+            }
+            try {
+                array_push(self::$syncfileids, $file->get_id());
+
+                $fs = get_file_storage();
+                $params = file_storage::unpack_reference($file->get_reference(), true);
+                if (!is_array($params) || !($storedfile = $fs->get_file($params['contextid'],
+                        $params['component'], $params['filearea'], $params['itemid'], $params['filepath'],
+                        $params['filename']))) {
+                    $file->set_missingsource();
+                } else {
+                    $file->set_synchronized(
+                        $storedfile->get_contenthash(),
+                        $storedfile->get_filesize(),
+                        0,
+                        $storedfile->get_timemodified(),
+                    );
+                }
+            } finally {
+                array_pop(self::$syncfileids);
             }
             return true;
         }

@@ -79,8 +79,9 @@ export default class Component extends BaseComponent {
         // Index of sections and cms components.
         this.sections = {};
         this.cms = {};
-        // The page section return.
-        this.sectionReturn = descriptor.sectionReturn ?? null;
+        // The section number and ID of the displayed page.
+        this.sectionReturn = descriptor?.sectionReturn ?? null;
+        this.pageSectionId = descriptor?.pageSectionId ?? null;
         this.debouncedReloads = new Map();
     }
 
@@ -89,15 +90,17 @@ export default class Component extends BaseComponent {
      *
      * @param {string} target the DOM main element or its ID
      * @param {object} selectors optional css selector overrides
-     * @param {number} sectionReturn the content section return
+     * @param {number} sectionReturn the section number of the displayed page
+     * @param {number} pageSectionId the section ID of the displayed page
      * @return {Component}
      */
-    static init(target, selectors, sectionReturn) {
+    static init(target, selectors, sectionReturn, pageSectionId) {
         return new Component({
             element: document.getElementById(target),
             reactive: getCurrentCourseEditor(),
             selectors,
             sectionReturn,
+            pageSectionId,
         });
     }
 
@@ -215,7 +218,8 @@ export default class Component extends BaseComponent {
     getWatchers() {
         // Section return is a global page variable but most formats define it just before start printing
         // the course content. This is the reason why we define this page setting here.
-        this.reactive.sectionReturn = this.sectionReturn;
+        this.reactive.sectionReturn = this?.sectionReturn ?? null;
+        this.reactive.pageSectionId = this?.pageSectionId ?? null;
 
         // Check if the course format is compatible with reactive components.
         if (!this.reactive.supportComponents) {
@@ -311,13 +315,18 @@ export default class Component extends BaseComponent {
         if (!target) {
             return;
         }
+
+        const sectionIsCollapsible = this._getCollapsibleSections();
+
         // Check if we have all sections collapsed/expanded.
         let allcollapsed = true;
         let allexpanded = true;
         state.section.forEach(
             section => {
-                allcollapsed = allcollapsed && section.contentcollapsed;
-                allexpanded = allexpanded && !section.contentcollapsed;
+                if (sectionIsCollapsible[section.id]) {
+                    allcollapsed = allcollapsed && section.contentcollapsed;
+                    allexpanded = allexpanded && !section.contentcollapsed;
+                }
             }
         );
         if (allcollapsed) {
@@ -328,6 +337,21 @@ export default class Component extends BaseComponent {
             target.classList.remove(this.classes.COLLAPSED);
             target.setAttribute('aria-expanded', true);
         }
+    }
+
+    /**
+     * Find collapsible sections.
+     */
+    _getCollapsibleSections() {
+        let sectionIsCollapsible = {};
+        const togglerDoms = this.element.querySelectorAll(this.selectors.COLLAPSE);
+        for (let togglerDom of togglerDoms) {
+            const headerDom = togglerDom.closest(this.selectors.SECTION_ITEM);
+            if (headerDom) {
+                sectionIsCollapsible[headerDom.dataset.id] = true;
+            }
+        }
+        return sectionIsCollapsible;
     }
 
     /**
@@ -445,9 +469,10 @@ export default class Component extends BaseComponent {
      * Refresh a section cm list.
      *
      * @param {Object} param
+     * @param {Object} param.state the full state object.
      * @param {Object} param.element details the update details.
      */
-    _refreshSectionCmlist({element}) {
+    _refreshSectionCmlist({state, element}) {
         const cmlist = element.cmlist ?? [];
         const section = this.getElement(this.selectors.SECTION, element.id);
         const listparent = section?.querySelector(this.selectors.SECTION_CMLIST);
@@ -456,6 +481,7 @@ export default class Component extends BaseComponent {
         if (listparent) {
             this._fixOrder(listparent, cmlist, this.selectors.CM, this.dettachedCms, createCm);
         }
+        this._refreshAllSectionsToggler(state);
     }
 
     /**
@@ -466,7 +492,7 @@ export default class Component extends BaseComponent {
      */
     _refreshCourseSectionlist({state}) {
         // If we have a section return means we only show a single section so no need to fix order.
-        if (this.reactive.sectionReturn !== null) {
+        if ((this.reactive?.sectionReturn ?? this.reactive?.pageSectionId) !== null) {
             return;
         }
         const sectionlist = this.reactive.getExporter().listedSectionIds(state);
@@ -476,6 +502,7 @@ export default class Component extends BaseComponent {
         if (listparent) {
             this._fixOrder(listparent, sectionlist, this.selectors.SECTION, this.dettachedSections, createSection);
         }
+        this._refreshAllSectionsToggler(state);
     }
 
     /**
@@ -574,7 +601,8 @@ export default class Component extends BaseComponent {
                 {
                     id: cmId,
                     courseid: Config.courseId,
-                    sr: this.reactive.sectionReturn ?? null,
+                    sr: this.reactive?.sectionReturn ?? null,
+                    pagesectionid: this.reactive?.pageSectionId ?? null,
                 }
             );
             promise.then((html, js) => {
@@ -641,7 +669,8 @@ export default class Component extends BaseComponent {
                 {
                     id: element.id,
                     courseid: Config.courseId,
-                    sr: this.reactive.sectionReturn ?? null,
+                    sr: this.reactive?.sectionReturn ?? null,
+                    pagesectionid: this.reactive?.pageSectionId ?? null,
                 }
             );
             promise.then((html, js) => {

@@ -1489,5 +1489,208 @@ function xmldb_main_upgrade($oldversion) {
         upgrade_main_savepoint(true, 2024100702.03);
     }
 
+    if ($oldversion < 2024100704.07) {
+        // Add index for querying delegated sections.
+        $table = new xmldb_table('course_sections');
+        $index = new xmldb_index('component_itemid', XMLDB_INDEX_NOTUNIQUE, ['component', 'itemid']);
+
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2024100704.07);
+    }
+
+    if ($oldversion < 2024100704.10) {
+
+        // Define field systememail to be added to oauth2_issuer.
+        $table = new xmldb_table('oauth2_issuer');
+        $field = new xmldb_field('systememail', XMLDB_TYPE_CHAR, '100', null, null, null, null, 'loginpagename');
+
+        // Conditionally launch add field systememail.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2024100704.10);
+    }
+
+    if ($oldversion < 2024100705.09) {
+        // A [name => url] map of new OIDC endpoints to be updated/created.
+        $endpointuris = [
+            'discovery_endpoint' => 'https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration',
+            'token_endpoint' => 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+            'userinfo_endpoint' => 'https://graph.microsoft.com/oidc/userinfo',
+            'authorization_endpoint' => 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+            'device_authorization_endpoint' => 'https://login.microsoftonline.com/common/oauth2/v2.0/devicecode',
+            'end_session_endpoint' => 'https://login.microsoftonline.com/common/oauth2/v2.0/logout',
+            'kerberos_endpoint' => 'https://login.microsoftonline.com/common/kerberos',
+        ];
+        // A [name] map of endpoints to be deleted.
+        $deletedendpointuris = [
+            'userpicture_endpoint',
+        ];
+        // A [internalfield => externalfield] map of new OIDC-based user field mappings to be updated/created.
+        $userfieldmappings = [
+            'idnumber' => 'sub',
+            'firstname' => 'givenname',
+            'lastname' => 'familyname',
+            'email' => 'email',
+            'lang' => 'locale',
+        ];
+        $admin = get_admin();
+        $adminid = $admin ? $admin->id : '0';
+        $microsoftservices = $DB->get_records('oauth2_issuer', ['servicetype' => 'microsoft']);
+        foreach ($microsoftservices as $microsoftservice) {
+            $time = time();
+            if (strpos($microsoftservice->baseurl, 'common') !== false) {
+                // Multi-tenant endpoint, proceed with upgrade.
+                // Insert/update the new endpoints.
+                foreach ($endpointuris as $endpointname => $endpointuri) {
+                    $endpoint = ['issuerid' => $microsoftservice->id, 'name' => $endpointname];
+                    $endpointid = $DB->get_field('oauth2_endpoint', 'id', $endpoint);
+                    if ($endpointid) {
+                        $endpoint = array_merge($endpoint, [
+                            'id' => $endpointid,
+                            'url' => $endpointuri,
+                            'timemodified' => $time,
+                            'usermodified' => $adminid,
+                        ]);
+                        $DB->update_record('oauth2_endpoint', $endpoint);
+                    } else {
+                        $endpoint = array_merge($endpoint, [
+                            'url' => $endpointuri,
+                            'timecreated' => $time,
+                            'timemodified' => $time,
+                            'usermodified' => $adminid,
+                        ]);
+                        $DB->insert_record('oauth2_endpoint', $endpoint);
+                    }
+                }
+                // Delete the old endpoints.
+                foreach ($deletedendpointuris as $endpointname) {
+                    $endpoint = ['issuerid' => $microsoftservice->id, 'name' => $endpointname];
+                    $DB->delete_records('oauth2_endpoint', $endpoint);
+                }
+                // Insert/update new user field mappings.
+                foreach ($userfieldmappings as $internalfieldname => $externalfieldname) {
+                    $fieldmap = ['issuerid' => $microsoftservice->id, 'internalfield' => $internalfieldname];
+                    $fieldmapid = $DB->get_field('oauth2_user_field_mapping', 'id', $fieldmap);
+                    if ($fieldmapid) {
+                        $fieldmap = array_merge($fieldmap, [
+                            'id' => $fieldmapid,
+                            'externalfield' => $externalfieldname,
+                            'timemodified' => $time,
+                            'usermodified' => $adminid,
+                        ]);
+                        $DB->update_record('oauth2_user_field_mapping', $fieldmap);
+                    } else {
+                        $fieldmap = array_merge($fieldmap, [
+                            'externalfield' => $externalfieldname,
+                            'timecreated' => $time,
+                            'timemodified' => $time,
+                            'usermodified' => $adminid,
+                        ]);
+                        $DB->insert_record('oauth2_user_field_mapping', $fieldmap);
+                    }
+                }
+                // Update the baseurl for the issuer.
+                $microsoftservice->baseurl = 'https://login.microsoftonline.com/common/v2.0';
+                $microsoftservice->timemodified = $time;
+                $microsoftservice->usermodified = $adminid;
+                $DB->update_record('oauth2_issuer', $microsoftservice);
+            } else {
+                // Single-tenant endpoint, add discovery_endpoint if it doesn't exist.
+                $url = $microsoftservice->baseurl;
+                $url .= (substr($url, -1) === '/') ? '' : '/';
+                $url .= '.well-known/openid-configuration';
+                $endpoint = ['issuerid' => $microsoftservice->id, 'name' => 'discovery_endpoint'];
+                $endpointid = $DB->get_field('oauth2_endpoint', 'id', $endpoint);
+                if (!$endpointid) {
+                    $endpoint = array_merge($endpoint, [
+                        'url' => $url,
+                        'timecreated' => $time,
+                        'timemodified' => $time,
+                        'usermodified' => $adminid,
+                    ]);
+                    $DB->insert_record('oauth2_endpoint', $endpoint);
+                }
+            }
+        }
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2024100705.09);
+    }
+
+    if ($oldversion < 2024100710.03) {
+        // Clean up tool_moodlenet configurations unless pointing to a custom installation.
+        $moodleneturl = get_config('tool_moodlenet', 'defaultmoodlenet');
+
+        $shouldcleanup = true;
+
+        // Check if pointing to a custom MoodleNet installation.
+        if (!empty($moodleneturl)) {
+            $parsed = parse_url(strtolower(trim($moodleneturl)));
+            $host = $parsed['host'] ?? '';
+
+            // Don't cleanup if it's a custom installation (not moodle.net).
+            if ($host !== 'moodle.net' && $host !== 'www.moodle.net') {
+                $shouldcleanup = false;
+            }
+        }
+
+        if ($shouldcleanup) {
+            // Reset configs to defaults.
+            set_config('defaultmoodlenet', '', 'tool_moodlenet');
+            set_config('enablemoodlenet', 0, 'tool_moodlenet');
+
+            // Hide activity chooser footer if set to MoodleNet.
+            $footer = get_config('core', 'activitychooseractivefooter');
+            if ($footer === 'tool_moodlenet') {
+                set_config('activitychooseractivefooter', 'hidden');
+            }
+
+            // Remove the enablesharingtomoodlenet config setting.
+            unset_config('enablesharingtomoodlenet');
+
+            // Remove MoodleNet outbound OAuth2 configuration.
+            unset_config('oauthservice', 'moodlenet');
+            $issuerids = $DB->get_fieldset_select('oauth2_issuer', 'id', "servicetype = ?", ['moodlenet']);
+            if (!empty($issuerids)) {
+                $DB->delete_records_list('oauth2_endpoint', 'issuerid', $issuerids);
+                $DB->delete_records_list('oauth2_access_token', 'issuerid', $issuerids);
+                $DB->delete_records_list('oauth2_refresh_token', 'issuerid', $issuerids);
+                $DB->delete_records_list('oauth2_system_account', 'issuerid', $issuerids);
+                $DB->delete_records_list('oauth2_user_field_mapping', 'issuerid', $issuerids);
+                $DB->delete_records_list('oauth2_issuer', 'id', $issuerids);
+            }
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2024100710.03);
+    }
+
+    if ($oldversion < 2024100710.07) {
+        // If h5plib_v127 is no longer present, remove it.
+        if (!file_exists($CFG->dirroot . '/h5p/h5plib/v127/version.php')) {
+            // Clean config.
+            uninstall_plugin('h5plib', 'v127');
+        }
+
+        // If h5plib_v128 is present, set it as the default one.
+        if (file_exists($CFG->dirroot . '/h5p/h5plib/v128/version.php')) {
+            set_config('h5plibraryhandler', 'h5plib_v128');
+        }
+
+        upgrade_main_savepoint(true, 2024100710.07);
+    }
+
+    if ($oldversion < 2024100711.05) {
+        // Force H5P content dependencies to be rebuilt lazily after the h5plib_v128 library update.
+        $DB->set_field_select('h5p', 'filtered', null, $DB->sql_compare_text('filtered') . ' IS NOT NULL');
+
+        upgrade_main_savepoint(true, 2024100711.05);
+    }
+
     return true;
 }

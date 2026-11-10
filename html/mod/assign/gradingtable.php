@@ -378,9 +378,24 @@ class assign_grading_table extends table_sql implements renderable {
         // Select.
         if (!$this->is_downloading() && $this->hasgrade) {
             $columns[] = 'select';
-            $headers[] = get_string('select') .
-                    '<div class="selectall"><label class="accesshide" for="selectall">' . get_string('selectall') . '</label>
-                    <input type="checkbox" id="selectall" name="selectall" title="' . get_string('selectall') . '"/></div>';
+            // The displayed text for the column header. Hidden to assistive technologies.
+            $visibleheader = html_writer::span(get_string('select'), '', ['aria-hidden' => 'true']);
+            // The actual accessible name for the column header which provides more context about the column's purpose to
+            // screen reader users.
+            $bulkactionsselection = html_writer::span(get_string('bulkactionsselection', 'assign'), 'sr-only');
+
+            // The select all checkbox.
+            $selectalllabel = html_writer::label(get_string('selectall'), 'selectall', false, ['class' => 'sr-only']);
+            $selectallcheckbox = html_writer::empty_tag(
+                'input',
+                [
+                    'type' => 'checkbox',
+                    'id' => 'selectall',
+                    'name' => 'selectall',
+                ],
+            );
+            $headers[] = $visibleheader . $bulkactionsselection .
+                html_writer::div($selectalllabel . $selectallcheckbox, 'selectall');
         }
 
         if ($this->hasviewblind || !$this->assignment->is_blind_marking()) {
@@ -881,7 +896,7 @@ class assign_grading_table extends table_sql implements renderable {
         reason: 'Picture column is merged with fullname column'
     )]
     public function col_picture(stdClass $row) {
-        \core\deprecation::emit_deprecation_if_present([$this, __FUNCTION__]);
+        \core\deprecation::emit_deprecation([$this, __FUNCTION__]);
         return $this->output->user_picture($row);
     }
 
@@ -1141,12 +1156,22 @@ class assign_grading_table extends table_sql implements renderable {
             );
             $caneditsubmission = $this->assignment->can_edit_submission($row->id, $USER->id);
 
-            $baseactionurl = new moodle_url('/mod/assign/view.php', [
-                'id' => $this->assignment->get_course_module()->id,
-                'userid' => $row->id,
-                'sesskey' => sesskey(),
-                'page' => $this->currpage,
-            ]);
+            $urlparams = [
+                 'id' => $this->assignment->get_course_module()->id,
+                 'sesskey' => sesskey(),
+                 'page' => $this->currpage,
+            ];
+
+            if ($this->assignment->is_blind_marking()) {
+                if (empty($row->recordid)) {
+                    $row->recordid = $this->assignment->get_uniqueid_for_user($row->userid);
+                }
+                $urlparams['blindid'] = $row->recordid;
+            } else {
+                $urlparams['userid'] = $row->userid;
+            }
+
+            $baseactionurl = new moodle_url('/mod/assign/view.php', $urlparams);
 
             $menu = new action_menu();
             $menu->set_owner_selector('.gradingtable-actionmenu');
@@ -1359,7 +1384,7 @@ class assign_grading_table extends table_sql implements renderable {
     public function col_userid(stdClass $row) {
         global $USER;
 
-        \core\deprecation::emit_deprecation_if_present([$this, __FUNCTION__]);
+        \core\deprecation::emit_deprecation([$this, __FUNCTION__]);
         $edit = '';
 
         $actions = array();

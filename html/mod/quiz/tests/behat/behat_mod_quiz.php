@@ -562,7 +562,7 @@ class behat_mod_quiz extends behat_question_base {
      */
     protected function get_xpath_page_break_icon_after_question($addorremoves, $questionname) {
         return "//li[contains(@class, 'slot') and contains(., '" . $this->escape($questionname) .
-                "')]//a[contains(@class, 'page_split_join') and @title = '" . $addorremoves . " page break']";
+                "')]//a[contains(@class, 'page_split_join') and contains(@aria-label, '$addorremoves page break')]";
     }
 
     /**
@@ -714,8 +714,11 @@ class behat_mod_quiz extends behat_question_base {
 
         $this->execute("behat_general::i_click_on", [$slotxpath . $deletexpath, "xpath_element"]);
 
+        // Wait for the dialogue to exist before clicking on the 'Yes' button to avoid random failures.
+        $this->execute('behat_general::wait_until_exists', [".modal-content", "css_element"]);
+
         $this->execute('behat_general::i_click_on_in_the',
-            ['Yes', "button", "Confirm", "dialogue"]
+            ["Yes", "button", "Confirm", "dialogue"]
         );
     }
 
@@ -847,15 +850,29 @@ class behat_mod_quiz extends behat_question_base {
      * @param string $username the username of the user that will attempt.
      * @param string $quizname the name of the quiz the user will attempt.
      * @param TableNode $attemptinfo information about the questions to add, as above.
+     * @param string|null $timefinish if specified, the attempt will be submitted with this
      * @Given /^user "([^"]*)" has attempted "([^"]*)" with responses:$/
+     * @Given /^user "([^"]*)" has attempted "([^"]*)" with responses submitting "([^"]*)":$/
      */
-    public function user_has_attempted_with_responses($username, $quizname, TableNode $attemptinfo) {
+    public function user_has_attempted_with_responses($username, $quizname, TableNode $attemptinfo, $timefinish = null) {
         global $DB;
 
         /** @var mod_quiz_generator $quizgenerator */
         $quizgenerator = behat_util::get_data_generator()->get_plugin_generator('mod_quiz');
 
-        $quizid = $DB->get_field('quiz', 'id', ['name' => $quizname], MUST_EXIST);
+        $quiz = $DB->get_record('quiz', ['name' => $quizname], 'id, timeclose', MUST_EXIST);
+        $quizid = $quiz->id;
+        $timeclose = $quiz->timeclose;
+
+        // If timefinish is provided, check against timeclose.
+        if ($timefinish !== null) {
+            if ($timeclose && $timefinish > $timeclose) {
+                throw new ExpectationException(
+                    "Attempt submission cannot be after the time the quiz closed.",
+                    $this->getSession()
+                );
+            }
+        }
         $user = $DB->get_record('user', ['username' => $username], '*', MUST_EXIST);
 
         list($forcedrandomquestions, $forcedvariants) =
@@ -867,7 +884,7 @@ class behat_mod_quiz extends behat_question_base {
         $attempt = $quizgenerator->create_attempt($quizid, $user->id,
                 $forcedrandomquestions, $forcedvariants);
 
-        $quizgenerator->submit_responses($attempt->id, $responses, false, true);
+        $quizgenerator->submit_responses($attempt->id, $responses, false, true, $timefinish);
 
         $this->set_user();
     }

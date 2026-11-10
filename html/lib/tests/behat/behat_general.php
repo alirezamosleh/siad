@@ -78,7 +78,7 @@ class behat_general extends behat_base {
      * @Given /^I am on homepage$/
      */
     public function i_am_on_homepage() {
-        $this->execute('behat_general::i_visit', ['/']);
+        $this->execute([self::class, 'i_visit'], ['/']);
     }
 
     /**
@@ -87,7 +87,7 @@ class behat_general extends behat_base {
      * @Given /^I am on site homepage$/
      */
     public function i_am_on_site_homepage() {
-        $this->execute('behat_general::i_visit', ['/?redirect=0']);
+        $this->execute([self::class, 'i_visit'], ['/?redirect=0']);
     }
 
     /**
@@ -96,7 +96,7 @@ class behat_general extends behat_base {
      * @Given /^I am on course index$/
      */
     public function i_am_on_course_index() {
-        $this->execute('behat_general::i_visit', ['/course/index.php']);
+        $this->execute([self::class, 'i_visit'], ['/course/index.php']);
     }
 
     /**
@@ -203,12 +203,74 @@ class behat_general extends behat_base {
                     $this->execute_js_on_node($iframe, "{{ELEMENT}}.name = '{$iframename}';");
                 }
                 $context->getSession()->switchToIFrame($iframename);
+                // Wait until the iframe is completely loaded and all pending operations complete.
+                $context->getSession()->wait(behat_base::get_extended_timeout(), behat_base::PAGE_READY_JS);
 
                 // If no exception we are done.
                 return true;
             },
             behat_base::get_extended_timeout()
         );
+    }
+
+    /**
+     * Wait until the specified iframe is interactable (visible, sized, and not occluded).
+     *
+     * @Given /^I wait until "(?P<iframe_name_string>(?:[^"]|\\")*)" iframe is interactable$/
+     * @Given /^I wait until "(?P<iframe_name_string>(?:[^"]|\\")*)" class iframe is interactable$/
+     * @param string $name The name or class of the iframe
+     */
+    public function wait_until_iframe_interactable(string $name): void {
+        if (!$this->running_javascript()) {
+            throw new DriverException(
+                'iFrame interactability checks are disabled in scenarios without Javascript support',
+            );
+        }
+        $this->spin(
+            function ($context) use ($name) {
+                $iframe = $context->find('iframe', $name);
+                $scrolljs = '{{ELEMENT}}.scrollIntoView({behavior: "auto", block: "center", inline: "center"});';
+                $this->execute_js_on_node($iframe, $scrolljs);
+                $this->ensure_node_is_visible($iframe);
+
+                // Check that the iframe is not occluded at its center point.
+                $iframexpath = $iframe->getXpath();
+                $js = <<<EOF
+                    (function() {
+                        const xpath = "{$iframexpath}";
+                        const el = document.evaluate(
+                            xpath,
+                            document,
+                            null,
+                            XPathResult.FIRST_ORDERED_NODE_TYPE,
+                            null
+                        ).singleNodeValue;
+                        if (!el) { return false; }
+                        const rect = el.getBoundingClientRect();
+                        if (rect.width === 0 || rect.height === 0) { return false; }
+                        const x = rect.left + rect.width / 2;
+                        const y = rect.top + rect.height / 2;
+                        const target = document.elementFromPoint(x, y);
+                        return target === el || el.contains(target);
+                    })()
+                EOF;
+
+                return (bool) $this->evaluate_script($js);
+            },
+            behat_base::get_extended_timeout()
+        );
+    }
+
+    /**
+     * Wait until the specified iframe is interactable (visible, sized, and not occluded) and switche to it.
+     *
+     * @Given /^I wait until "(?P<iframe_name_string>(?:[^"]|\\")*)" iframe is interactable and switch to it$/
+     * @Given /^I wait until "(?P<iframe_name_string>(?:[^"]|\\")*)" class iframe is interactable and switch to it$/
+     * @param string $name The name of the iframe
+     */
+    public function wait_until_iframe_interactable_and_switch_to(string $name): void {
+        $this->wait_until_iframe_interactable($name);
+        $this->switch_to_iframe($name);
     }
 
     /**
@@ -433,6 +495,22 @@ class behat_general extends behat_base {
     }
 
     /**
+     * Sets the focus on an element, generating a focus JS event.
+     *
+     * @When /^I set the focus on the "(?P<element_string>(?:[^"]|\\")*)" "(?P<selector_string>[^"]*)"$/
+     * @param string $element Element we look for
+     * @param string $selectortype The type of what we look for
+     */
+    public function i_set_the_focus_on_the($element, $selectortype) {
+        if (!$this->running_javascript()) {
+            throw new ExpectationException('Can\'t set the focus on "' . $element . '" in non-js mode', $this->getSession());
+        }
+        // Gets the node based on the requested selector type and locator.
+        $node = $this->get_selected_node($selectortype, $element);
+        $node->focus();
+    }
+
+    /**
      * Sets the focus and takes away the focus from an element, generating blur JS event.
      *
      * @When /^I take focus off "(?P<element_string>(?:[^"]|\\")*)" "(?P<selector_string>[^"]*)"$/
@@ -462,7 +540,7 @@ class behat_general extends behat_base {
      */
     public function i_click_on_confirming_the_dialogue($element, $selectortype) {
         $this->i_click_on($element, $selectortype);
-        $this->execute('behat_general::accept_currently_displayed_alert_dialog', []);
+        $this->execute([self::class, 'accept_currently_displayed_alert_dialog'], []);
         $this->wait_until_the_page_is_ready();
     }
 
@@ -476,7 +554,7 @@ class behat_general extends behat_base {
      */
     public function i_click_on_dismissing_the_dialogue($element, $selectortype) {
         $this->i_click_on($element, $selectortype);
-        $this->execute('behat_general::dismiss_currently_displayed_alert_dialog', []);
+        $this->execute([self::class, 'dismiss_currently_displayed_alert_dialog'], []);
         $this->wait_until_the_page_is_ready();
     }
 
@@ -1165,7 +1243,7 @@ EOF;
      * @Given /^I trigger cron$/
      */
     public function i_trigger_cron() {
-        $this->execute('behat_general::i_visit', ['/admin/cron.php']);
+        $this->execute([self::class, 'i_visit'], ['/admin/cron.php']);
     }
 
     /**
@@ -1250,7 +1328,7 @@ EOF;
         // Do setup for cron task.
         \core\cron::setup_user();
 
-        // Discard task output as not appropriate for Behat output!
+        // Capture task output, in case we need it to report an error.
         ob_start();
 
         // Run all tasks which have a scheduled runtime of before now.
@@ -1268,11 +1346,9 @@ EOF;
             // If a task was successful it will be removed.
             // If it failed then it will still exist.
             if ($DB->record_exists('task_adhoc', ['id' => $task->get_id()])) {
-                // End ouptut buffering and flush the current buffer.
-                // This should be from just the current task.
-                ob_end_flush();
-
-                throw new DriverException('An adhoc task failed', 0);
+                // Report the error, including the task output up to the failure.
+                // This includes the output of any exception or other error that occurred.
+                throw new DriverException("An adhoc task failed. mtrace() output:\n\n" . ob_get_clean());
             }
         }
         ob_end_clean();
@@ -2151,8 +2227,8 @@ EOF;
         }
         // Gets the node based on the requested selector type and locator.
         $node = $this->get_selected_node($selectortype, $element);
-        $this->execute('behat_general::i_click_on', [$node, 'NodeElement']);
-        $this->execute('behat_general::i_press_named_key', ['', 'tab']);
+        $this->execute([self::class, 'i_click_on'], [$node, 'NodeElement']);
+        $this->execute([self::class, 'i_press_named_key'], ['', 'tab']);
     }
 
     /**
@@ -2265,9 +2341,9 @@ EOF;
      */
     public function i_manually_press_tab($shift = '') {
         if (empty($shift)) {
-            $this->execute('behat_general::i_press_named_key', ['', 'tab']);
+            $this->execute([self::class, 'i_press_named_key'], ['', 'tab']);
         } else {
-            $this->execute('behat_general::i_press_named_key', ['shift', 'tab']);
+            $this->execute([self::class, 'i_press_named_key'], ['shift', 'tab']);
         }
     }
 
@@ -2363,7 +2439,7 @@ EOF;
      * @throws DriverException
      */
     public function i_manually_press_enter() {
-        $this->execute('behat_general::i_press_named_key', ['', 'enter']);
+        $this->execute([self::class, 'i_press_named_key'], ['', 'enter']);
     }
 
     /**
@@ -2398,7 +2474,7 @@ EOF;
      */
     public function i_click_on_the_dynamic_tab(string $tabname): void {
         $xpath = "//*[@id='dynamictabs-tabs'][descendant::a[contains(text(), '" . $this->escape($tabname) . "')]]";
-        $this->execute('behat_general::i_click_on_in_the',
+        $this->execute([self::class, 'i_click_on_in_the'],
             [$tabname, 'link', $xpath, 'xpath_element']);
     }
 
@@ -2549,9 +2625,9 @@ EOF;
         // Update the state of the switch.
         $field = $node->getAttribute('id');
         if ($state == "on") {
-            $this->execute('behat_forms::i_set_the_field_to', [$field, 1]);
+            $this->execute([behat_forms::class, 'i_set_the_field_to'], [$field, 1]);
         } else if ($state == "off") {
-            $this->execute('behat_forms::i_set_the_field_to', [$field, 0]);
+            $this->execute([behat_forms::class, 'i_set_the_field_to'], [$field, 0]);
         } else {
             throw new \Behat\Mink\Exception\ExpectationException('Invalid state for switch: ' . $state, $this->getSession());
         }
@@ -2585,7 +2661,7 @@ EOF;
      * @throws coding_exception
      */
     private function get_combobox_dropdown_node(string $comboboxname, string $itemname, bool $fieldset = true): NodeElement {
-        $this->execute("behat_general::wait_until_the_page_is_ready");
+        $this->execute([self::class, 'wait_until_the_page_is_ready']);
 
         $comboboxxpath = "//div[contains(@class, 'comboboxsearch') and .//span[text()='{$comboboxname}']]";
         $dropdowntriggerxpath = $comboboxxpath . "/descendant::div[contains(@class,'dropdown-toggle')]";
@@ -2594,12 +2670,12 @@ EOF;
 
         // If the dropdown is not visible, open it. Also, ensure that a dropdown trigger element exists.
         if ($this->getSession()->getPage()->find('xpath', $dropdowntriggerxpath) && !$dropdown->isVisible()) {
-            $this->execute("behat_general::i_click_on", [$dropdowntriggerxpath, "xpath_element"]);
+            $this->execute([self::class, 'i_click_on'], [$dropdowntriggerxpath, "xpath_element"]);
         }
 
         if ($fieldset) {
-            $this->execute("behat_forms::set_field_value", [$comboboxname, $itemname]);
-            $this->execute("behat_general::wait_until_exists", [$itemname, "list_item"]);
+            $this->execute([behat_forms::class, 'set_field_value'], [$comboboxname, $itemname]);
+            $this->execute([self::class, 'wait_until_exists'], [$itemname, "list_item"]);
         }
 
         return $dropdown;
@@ -2619,7 +2695,7 @@ EOF;
      * @param string $comboboxname The name (label) of the search combo box element. (e.g. "Search users", "Search groups").
      */
     public function i_confirm_in_search_combobox_exists(string $itemname, string $comboboxname): void {
-        $this->execute("behat_general::assert_element_contains_text",
+        $this->execute([self::class, 'assert_element_contains_text'],
             [$itemname, $this->get_combobox_dropdown_node($comboboxname, $itemname, false), "NodeElement"]);
     }
 
@@ -2637,7 +2713,7 @@ EOF;
      * @param string $comboboxname The name (label) of the search combo box element. (e.g. "Search users", "Search groups").
      */
     public function i_confirm_in_search_combobox_does_not_exist(string $itemname, string $comboboxname): void {
-        $this->execute("behat_general::assert_element_not_contains_text",
+        $this->execute([self::class, 'assert_element_not_contains_text'],
             [$itemname, $this->get_combobox_dropdown_node($comboboxname, $itemname, false), "NodeElement"]);
     }
 
@@ -2656,11 +2732,11 @@ EOF;
      */
     public function i_click_on_in_search_combobox(string $itemname, string $comboboxname): void {
         $node = $this->get_combobox_dropdown_node($comboboxname, $itemname);
-        $this->execute('behat_general::i_click_on_in_the', [
+        $this->execute([self::class, 'i_click_on_in_the'], [
             $itemname, "list_item",
             $node, "NodeElement",
         ]);
-        $this->execute("behat_general::i_wait_to_be_redirected");
+        $this->execute([self::class, 'i_wait_to_be_redirected']);
     }
 
     /**

@@ -282,13 +282,30 @@ class core_admin_renderer extends plugin_renderer_base {
      *
      * @return string HTML to output.
      */
-    public function admin_notifications_page($maturity, $insecuredataroot, $errorsdisplayed,
-            $cronoverdue, $dbproblems, $maintenancemode, $availableupdates, $availableupdatesfetch,
-            $buggyiconvnomb, $registered, array $cachewarnings = array(), $eventshandlers = 0,
-            $themedesignermode = false, $devlibdir = false, $mobileconfigured = false,
-            $overridetossl = false, $invalidforgottenpasswordurl = false, $croninfrequent = false,
-            $showcampaigncontent = false, bool $showfeedbackencouragement = false, bool $showservicesandsupport = false,
-            $xmlrpcwarning = '') {
+    public function admin_notifications_page(
+        $maturity,
+        $insecuredataroot,
+        $errorsdisplayed,
+        $cronoverdue,
+        $dbproblems,
+        $maintenancemode,
+        $availableupdates,
+        $availableupdatesfetch,
+        $buggyiconvnomb,
+        $registered,
+        array $cachewarnings = [],
+        $eventshandlers = 0,
+        $themedesignermode = false,
+        $devlibdir = false,
+        $mobileconfigured = false,
+        $overridetossl = false,
+        $invalidforgottenpasswordurl = false,
+        $croninfrequent = false,
+        $showcampaigncontent = false,
+        bool $showfeedbackencouragement = false,
+        bool $showservicesandsupport = false,
+        $xmlrpcwarning = ''
+    ) {
 
         global $CFG;
         $output = '';
@@ -314,6 +331,8 @@ class core_admin_renderer extends plugin_renderer_base {
         $output .= $this->mobile_configuration_warning($mobileconfigured);
         $output .= $this->forgotten_password_url_warning($invalidforgottenpasswordurl);
         $output .= $this->mnet_deprecation_warning($xmlrpcwarning);
+        $output .= $this->moodlenet_removal_warning();
+        $output .= $this->marketplace_integration_notice();
         $output .= $this->userfeedback_encouragement($showfeedbackencouragement);
         $output .= $this->services_and_support_content($showservicesandsupport);
         $output .= $this->campaign_content($showcampaigncontent);
@@ -2218,7 +2237,7 @@ class core_admin_renderer extends plugin_renderer_base {
     public function moodleorg_registration_message() {
         $a = new stdClass();
         $a->moreinformation = '#id_sitestats'; // More information anchor.
-        $a->moodleapp = HUB_MOODLEORGHUBURL . '/solutions/moodle-app/';
+        $a->moodleapp = MOODLE_PRODUCTURL . '/solutions/moodle-app/';
         $out = format_text(get_string('registerwithmoodleorginfo', 'core_hub', $a), FORMAT_MARKDOWN);
 
         $out .= html_writer::link(
@@ -2265,6 +2284,33 @@ class core_admin_renderer extends plugin_renderer_base {
         }
 
         return $this->warning($xmlrpcwarning);
+    }
+
+    /**
+     * Display a warning about the removal of MoodleNet integration.
+     *
+     * @return string HTML to output.
+     */
+    protected function moodlenet_removal_warning(): string {
+        $moodlenetenabled = get_config('tool_moodlenet', 'enablemoodlenet');
+        if (!empty($moodlenetenabled)) {
+            $moodlenetwarning = get_string('moodlenetremovalwarning', 'admin');
+            return $this->warning($moodlenetwarning);
+        }
+
+        return '';
+    }
+
+    /**
+     * Display a notice about Moodle Marketplace integration.
+     *
+     * @return string HTML to output.
+     */
+    protected function marketplace_integration_notice(): string {
+        $installer = tool_installaddon_installer::instance();
+        $url = $installer->get_marketplace_url();
+        $notice = get_string('marketplaceavailablenotice', 'admin', $url->out());
+        return $this->warning($notice, 'info');
     }
 
     /**

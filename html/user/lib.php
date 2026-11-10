@@ -333,18 +333,41 @@ function user_get_user_details($user, $course = null, array $userfields = array(
         $userfields[] = 'fullname';
     }
 
+    // Callback check for plugins to allow or prevent access.
+    $forceallow = true;
+    $currentuser = ($user->id == $USER->id);
+    $isadmin = is_siteadmin($USER);
+    if (!$currentuser) {
+        $forceallow = false;
+        $callbackresult = user_process_profile_callbacks($user, $course);
+        if ($callbackresult === core_user::VIEWPROFILE_PREVENT) {
+            return null; // Access denied.
+        } else if ($callbackresult === core_user::VIEWPROFILE_FORCE_ALLOW) {
+            $forceallow = true;
+        }
+    }
+
     if (!empty($course)) {
         $context = context_course::instance($course->id);
         $usercontext = context_user::instance($user->id);
-        $canviewdetailscap = (has_capability('moodle/user:viewdetails', $context) || has_capability('moodle/user:viewdetails', $usercontext));
     } else {
         $context = context_user::instance($user->id);
         $usercontext = $context;
-        $canviewdetailscap = has_capability('moodle/user:viewdetails', $usercontext);
     }
 
-    $currentuser = ($user->id == $USER->id);
-    $isadmin = is_siteadmin($USER);
+    if (!$forceallow) {
+        // Existing capability checks.
+        if (!empty($course)) {
+            $canviewdetailscap = (has_capability('moodle/user:viewdetails', $context) || has_capability('moodle/user:viewdetails', $usercontext));
+        } else {
+            $canviewdetailscap = has_capability('moodle/user:viewdetails', $usercontext);
+        }
+
+        if (!$currentuser && !$canviewdetailscap && !has_coursecontact_role($user->id)) {
+            // Skip this user details.
+            return null;
+        }
+    }
 
     // This does not need to include custom profile fields as it is only used to check specific
     // fields below.
@@ -368,28 +391,28 @@ function user_get_user_details($user, $course = null, array $userfields = array(
         $canaccessallgroups = false;
     }
 
-    if (!$currentuser && !$canviewdetailscap && !has_coursecontact_role($user->id)) {
-        // Skip this user details.
-        return null;
-    }
+    // User ID and fullname are always included.
+    $userdetails = [
+        'id' => $user->id,
+        'fullname' => fullname($user, $canviewfullnames),
+    ];
 
-    $userdetails = array();
-    $userdetails['id'] = $user->id;
+    // User first/lastname included if capability check passes, or the same is present in fullname.
+    $dummyusername = core_user::get_dummy_fullname($context, ['override' => $canviewfullnames]);
+    if (in_array('firstname', $userfields) &&
+            ($canviewfullnames || core_text::strrpos($dummyusername, 'firstname') !== false)) {
+        $userdetails['firstname'] = $user->firstname;
+    }
+    if (in_array('lastname', $userfields) &&
+            ($canviewfullnames || core_text::strrpos($dummyusername, 'lastname') !== false)) {
+        $userdetails['lastname'] = $user->lastname;
+    }
 
     if (in_array('username', $userfields)) {
         if ($currentuser or has_capability('moodle/user:viewalldetails', $context)) {
             $userdetails['username'] = $user->username;
         }
     }
-    if ($isadmin or $canviewfullnames) {
-        if (in_array('firstname', $userfields)) {
-            $userdetails['firstname'] = $user->firstname;
-        }
-        if (in_array('lastname', $userfields)) {
-            $userdetails['lastname'] = $user->lastname;
-        }
-    }
-    $userdetails['fullname'] = fullname($user, $canviewfullnames);
 
     if (in_array('customfields', $userfields)) {
         $categories = profile_get_user_fields_with_data_by_category($user->id);
@@ -1202,29 +1225,10 @@ function user_can_view_profile($user, $course = null, $usercontext = null) {
     }
 
     // Use callbacks so that (primarily) local plugins can prevent or allow profile access.
-    $forceallow = false;
-    $plugintypes = get_plugins_with_function('control_view_profile');
-    foreach ($plugintypes as $plugins) {
-        foreach ($plugins as $pluginfunction) {
-            $result = $pluginfunction($user, $course, $usercontext);
-            switch ($result) {
-                case core_user::VIEWPROFILE_DO_NOT_PREVENT:
-                    // If the plugin doesn't stop access, just continue to next plugin or use
-                    // default behaviour.
-                    break;
-                case core_user::VIEWPROFILE_FORCE_ALLOW:
-                    // Record that we are definitely going to allow it (unless another plugin
-                    // returns _PREVENT).
-                    $forceallow = true;
-                    break;
-                case core_user::VIEWPROFILE_PREVENT:
-                    // If any plugin returns PREVENT then we return false, regardless of what
-                    // other plugins said.
-                    return false;
-            }
-        }
-    }
-    if ($forceallow) {
+    $callbackresult = user_process_profile_callbacks($user, $course, $usercontext);
+    if ($callbackresult === core_user::VIEWPROFILE_PREVENT) {
+        return false; // Access denied.
+    } else if ($callbackresult === core_user::VIEWPROFILE_FORCE_ALLOW) {
         return true;
     }
 
@@ -1271,6 +1275,34 @@ function user_can_view_profile($user, $course = null, $usercontext = null) {
 }
 
 /**
+ * Process plugin callbacks for profile visibility.
+ *
+ * @param stdClass $user The user whose profile is being checked.
+ * @param stdClass|null $course The course context, if applicable.
+ * @param context|null $usercontext The user context, if applicable.
+ * @return int One of the core_user::VIEWPROFILE_* constants.
+ */
+function user_process_profile_callbacks(stdClass $user, ?stdClass $course = null, ?stdClass $usercontext = null): int {
+    $plugintypes = get_plugins_with_function('control_view_profile');
+    $forceallow = false;
+
+    foreach ($plugintypes as $plugins) {
+        foreach ($plugins as $pluginfunction) {
+            $result = $pluginfunction($user, $course, $usercontext);
+            switch ($result) {
+                case core_user::VIEWPROFILE_FORCE_ALLOW:
+                    $forceallow = true;
+                    break;
+                case core_user::VIEWPROFILE_PREVENT:
+                    return core_user::VIEWPROFILE_PREVENT;
+            }
+        }
+    }
+
+    return $forceallow ? core_user::VIEWPROFILE_FORCE_ALLOW : core_user::VIEWPROFILE_DO_NOT_PREVENT;
+}
+
+/**
  * Returns users tagged with a specified tag.
  *
  * @param core_tag_tag $tag
@@ -1286,32 +1318,64 @@ function user_can_view_profile($user, $course = null, $usercontext = null) {
 function user_get_tagged_users($tag, $exclusivemode = false, $fromctx = 0, $ctx = 0, $rec = 1, $page = 0) {
     global $PAGE;
 
-    if ($ctx && $ctx != context_system::instance()->id) {
-        $usercount = 0;
-    } else {
-        // Users can only be displayed in system context.
-        $usercount = $tag->count_tagged_items('core', 'user',
-                'it.deleted=:notdeleted', array('notdeleted' => 0));
-    }
     $perpage = $exclusivemode ? 24 : 5;
-    $content = '';
-    $excludedusers = 0;
+    $filteredusers = []; // Initialize an array to hold users that pass filtering.
 
-    if ($usercount) {
-        $userlist = $tag->get_tagged_items('core', 'user', $page * $perpage, $perpage,
-                'it.deleted=:notdeleted', array('notdeleted' => 0));
-        foreach ($userlist as $user) {
-            if (!user_can_view_profile($user)) {
-                unset($userlist[$user->id]);
-                $excludedusers++;
+    $totalusers = $tag->count_tagged_items('core', 'user', 'it.deleted=:notdeleted', ['notdeleted' => 0]);
+    $withinuserlimit = ($page * $perpage < $totalusers);
+    // Check if the requested page is within the user limit and if the context is valid or matches the system context.
+    if ($withinuserlimit && (!$ctx || $ctx == context_system::instance()->id)) {
+        // The output from get_tagged_items() will be filtered to check if users are visible to the current user.
+        // It’s possible that the count of users meeting the filtering criteria may fall short of the per-page limit,
+        // necessitating additional data beyond this limit.
+        // Implementing a batch approach addressed this issue by minimizing database queries.
+        $batch = 0;
+        // Increase the per-page limit to create a batch size for chunked querying.
+        // If the first chunk $perpagebatch doesn't return enough users, fetch the next chunk without re-querying the database.
+        $perpagebatch = $perpage * 2;
+
+        do {
+            $userlist = $tag->get_tagged_items(
+                component: 'core',
+                itemtype: 'user',
+                limitfrom: $perpagebatch * $batch,
+                limitnum: $perpagebatch,
+                subquery: 'it.deleted=:notdeleted',
+                params: ['notdeleted' => 0],
+            );
+
+            foreach ($userlist as $user) {
+                // Check if the user profile can be viewed.
+                if (user_can_view_profile($user)) {
+                    $filteredusers[] = $user;
+                    // If enough users have been collected for the requested page, exit both loops.
+                    if (count($filteredusers) > $perpage * ($page + 1)) {
+                        break 2;
+                    }
+                }
             }
-        }
+
+            $batch++;
+
+        } while (count($userlist) > 0); // If all the data is still insufficient, run another batch.
+
+    }
+
+    $usercount = count($filteredusers);
+
+    // Initialize the content to display tagged users.
+    $content = '';
+    if ($usercount > 0) {
+        // Prepare the paginated list of users, limiting it to the number of users per page.
+        $paginatedusers = array_slice($filteredusers, $page * $perpage, $perpage);
+
+        // Get the renderer for the user module to create the user list content.
         $renderer = $PAGE->get_renderer('core', 'user');
-        $content .= $renderer->user_list($userlist, $exclusivemode);
+        $content = $renderer->user_list($paginatedusers, $exclusivemode);
     }
 
     // Calculate the total number of pages.
-    $totalpages = ceil(($usercount - $excludedusers) / $perpage);
+    $totalpages = ceil($usercount / $perpage);
 
     return new core_tag\output\tagindex($tag, 'core', 'user', $content,
             $exclusivemode, $fromctx, $ctx, $rec, $page, $totalpages);

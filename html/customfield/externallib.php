@@ -118,7 +118,9 @@ class core_customfield_external extends external_api {
                     new external_single_structure(
                         array(
                             'id' => new external_value(PARAM_INT, 'id'),
+                            'name' => new external_value(PARAM_TEXT, 'name'),
                             'nameeditable' => new external_value(PARAM_RAW, 'inplace editable name'),
+                            'movetitle' => new external_value(PARAM_TEXT, 'accessible name for the category move handle'),
                             'addfieldmenu' => new external_value(PARAM_RAW, 'addfieldmenu'),
                             'fields' => new external_multiple_structure(
                                 new external_single_structure(
@@ -127,6 +129,7 @@ class core_customfield_external extends external_api {
                                         'shortname' => new external_value(PARAM_NOTAGS, 'shortname'),
                                         'type' => new external_value(PARAM_NOTAGS, 'type'),
                                         'id' => new external_value(PARAM_INT, 'id'),
+                                        'movetitle' => new external_value(PARAM_TEXT, 'accessible name for the field move handle'),
                                     )
                                 )
                             , '', VALUE_OPTIONAL),

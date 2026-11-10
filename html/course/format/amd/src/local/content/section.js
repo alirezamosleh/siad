@@ -94,8 +94,8 @@ export default class extends DndSection {
         }
         await this.reactive.dispatch('sectionContentCollapsed', [this.id], false);
         const pendingOpen = new Pending(`courseformat/section:openSectionIfNecessary`);
-        this.element.scrollIntoView({block: "center"});
         setTimeout(() => {
+            document.querySelector("#" + pageCmInfo.anchor).scrollIntoView();
             this.reactive.dispatch('setPageItem', 'cm', pageCmInfo.id);
             pendingOpen.resolve();
         }, 250);
@@ -120,7 +120,7 @@ export default class extends DndSection {
      */
     validateDropData(dropdata) {
         // If the format uses one section per page sections dropping in the content is ignored.
-        if (dropdata?.type === 'section' && this.reactive.sectionReturn !== null) {
+        if (dropdata?.type === 'section' && (this.reactive?.sectionReturn ?? this.reactive?.pageSectionId) !== null) {
             return false;
         }
         return super.validateDropData(dropdata);

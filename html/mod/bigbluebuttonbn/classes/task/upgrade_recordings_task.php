@@ -1,4 +1,3 @@
-
 <?php
 // This file is part of Moodle - http://moodle.org/
 //
@@ -119,8 +118,9 @@ class upgrade_recordings_task extends adhoc_task {
                 }
             }
 
-            if ($DB->record_exists('bigbluebuttonbn_recordings', ['recordingid' => $recordingid])) {
-                mtrace("A recording already exists for {$recordingid}. Skipping.");
+            if ($DB->record_exists('bigbluebuttonbn_recordings', $newrecording)) {
+                mtrace("A recording already exists for {$recording['recordID']}. Skipping.");
+                // A recording matching these characteristics alreay exists.
                 continue;
             }
             // Recording has not been imported, check if we still have more logs.
@@ -201,4 +201,3 @@ class upgrade_recordings_task extends adhoc_task {
         }
     }
 }
-

@@ -1150,7 +1150,7 @@ EOF;
         return new moodle_url('/mod/bigbluebuttonbn/bbb_view.php', [
             'action' => 'logout',
             'id' => $this->get_cm()->id,
-            'courseid' => $this->get_cm()->course // Used to find the course if ever the activity is deleted
+            'courseid' => $this->get_cm()->course, // Used to find the course if ever the activity is deleted
             // while the meeting is running.
         ]);
     }
