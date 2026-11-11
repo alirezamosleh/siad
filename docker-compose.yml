@@ -10,12 +10,8 @@ services:
     image: bitnami/mariadb:11.2
     container_name: moodle_mariadb
     restart: unless-stopped
-    environment:
-      - MARIADB_ROOT_PASSWORD=SEDO3482389D4
-      - MARIADB_USER=alirezabb
-      - MARIADB_PASSWORD=SEDO3482389D4
-      - MARIADB_DATABASE=siad
-      - MARIADB_LOG_QUERIES=OFF
+    env_file:
+      - .env
     volumes:
       - mariadb_data:/bitnami/mariadb
       - ./mariadb.my.cnf:/opt/bitnami/mariadb/conf/my_custom.cnf:ro
@@ -46,32 +42,8 @@ services:
       - "api0.joinin.ir:185.37.54.19"
       - "api.joinin.ir:185.37.54.19"
       - "faryan.cloud:185.37.54.19"
-    environment:
-      # ===== DATABASE CONFIG =====
-      - MOODLE_DATABASE_TYPE=${DB_TYPE:-mariadb}
-      - MOODLE_DATABASE_HOST=${DB_HOST:-mariadb}
-      - MOODLE_DATABASE_PORT_NUMBER=${DB_PORT:-3306}
-      - MOODLE_DATABASE_USER=${DB_USER:-alirezabb}
-      - MOODLE_DATABASE_PASSWORD=${DB_PASSWORD:-SEDO3482389D4}
-      - MOODLE_DATABASE_NAME=${DB_NAME:-siad}
-      - MOODLE_DATABASE_PREFIX=${DB_PREFIX:-mdl_}
-
-      # ===== ADMIN CREDENTIALS =====
-      - MOODLE_ADMIN=${MOODLE_ADMIN_USER:-admin1}
-      - MOODLE_EMAIL=${MOODLE_ADMIN_EMAIL:-work.alirezamosleh@gmail.com}
-      - MOODLE_SITE_NAME=${MOODLE_SITE_NAME:-سامانه سیاد}
-
-      # ===== SITE URL & PROXY =====
-      - MOODLE_HOST=${MOODLE_HOST:-localhost:8080}
-      - MOODLE_URL=${MOODLE_URL:-http://localhost:8080}
-      - MOODLE_REVERSEPROXY=${MOODLE_REVERSEPROXY:-no}
-      - MOODLE_SSLPROXY=${MOODLE_SSLPROXY:-no}
-      - MOODLE_DATAROOT=/var/moodledata
-
-      # ===== REDIS SESSION =====
-      - REDIS_HOST=${REDIS_HOST:-redis}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-kali}
+    env_file:
+      - .env
     volumes:
       - ./html:/var/www/html:rw
       - moodledata_data:/var/moodledata:rw
@@ -85,23 +57,8 @@ services:
     container_name: moodle_cron
     restart: unless-stopped
     command: ["cron"]
-    environment:
-      - MOODLE_DATABASE_TYPE=${DB_TYPE:-mariadb}
-      - MOODLE_DATABASE_HOST=${DB_HOST:-mariadb}
-      - MOODLE_DATABASE_PORT_NUMBER=${DB_PORT:-3306}
-      - MOODLE_DATABASE_USER=${DB_USER:-alirezabb}
-      - MOODLE_DATABASE_PASSWORD=${DB_PASSWORD:-SEDO3482389D4}
-      - MOODLE_DATABASE_NAME=${DB_NAME:-siad}
-      - MOODLE_DATABASE_PREFIX=${DB_PREFIX:-mdl_}
-      - MOODLE_ADMIN=${MOODLE_ADMIN_USER:-admin1}
-      - MOODLE_HOST=${MOODLE_HOST:-localhost:8080}
-      - MOODLE_URL=${MOODLE_URL:-http://localhost:8080}
-      - MOODLE_REVERSEPROXY=${MOODLE_REVERSEPROXY:-no}
-      - MOODLE_SSLPROXY=${MOODLE_SSLPROXY:-no}
-      - MOODLE_DATAROOT=/var/moodledata
-      - REDIS_HOST=${REDIS_HOST:-redis}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-kali}
+    env_file:
+      - .env
     volumes:
       - ./html:/var/www/html:rw
       - moodledata_data:/var/moodledata:rw
@@ -122,7 +79,7 @@ services:
     restart: unless-stopped
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
     env_file:
-      - ./fastapi_auth/.env
+      - .env
     expose:
       - "8000"
     ports:
@@ -138,10 +95,8 @@ services:
     image: docker.arvancloud.ir/postgres:14-alpine3.20
     container_name: gl-nginx-postgres
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: greenlight-v3-production
+    env_file:
+      - .env
     volumes:
       - greenlight_postgres_data:/var/lib/postgresql/data
 
@@ -157,10 +112,8 @@ services:
     container_name: gl-nginx-app
     entrypoint: [bin/start]
     restart: unless-stopped
-    env_file: ./greenlight/.env
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@greenlight-postgres:5432/greenlight-v3-production
-      REDIS_URL: redis://greenlight-redis:6379
+    env_file:
+      - .env
     expose:
       - "3000"
     ports:
@@ -227,12 +180,8 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: ["bundle exec rails runner /usr/src/app/custom/recordings_sync_worker.rb"]
     restart: unless-stopped
-    env_file: ./greenlight/.env
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@greenlight-postgres:5432/greenlight-v3-production
-      REDIS_URL: redis://greenlight-redis:6379
-      RECORDINGS_SYNC_INTERVAL: "120"
-      RECORDINGS_FULL_SYNC_EVERY: "5"
+    env_file:
+      - .env
     volumes:
       - ./greenlight/config/services/big_blue_button_api.rb:/usr/src/app/app/services/big_blue_button_api.rb:ro
       - ./greenlight/config/services/recording_catalog_sync.rb:/usr/src/app/app/services/recording_catalog_sync.rb:ro

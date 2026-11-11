@@ -64,12 +64,11 @@ if ($hassiteconfig) {
         'local_morvaridsync/sync_scope',
         get_string('sync_scope', 'local_morvaridsync'),
         get_string('sync_scope_desc', 'local_morvaridsync'),
-        'all',
+        'courses_only',
         [
-            'all' => get_string('scope_all', 'local_morvaridsync'),
-            'users_only' => get_string('scope_users_only', 'local_morvaridsync'),
             'courses_only' => get_string('scope_courses_only', 'local_morvaridsync'),
-            'enrolments_only' => get_string('scope_enrolments_only', 'local_morvaridsync'),
+            'teachers_only' => get_string('scope_teachers_only', 'local_morvaridsync'),
+            'students_only' => get_string('scope_students_only', 'local_morvaridsync'),
             'suspend_only' => get_string('scope_suspend_only', 'local_morvaridsync'),
         ]
     ));

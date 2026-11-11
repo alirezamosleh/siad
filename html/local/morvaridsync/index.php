@@ -94,7 +94,7 @@ if ($run) {
 
     $options = [
         'term' => optional_param('term', '', PARAM_ALPHANUMEXT),
-        'sync_scope' => optional_param('sync_scope', 'all', PARAM_ALPHAEXT),
+        'sync_scope' => optional_param('sync_scope', 'courses_only', PARAM_ALPHAEXT),
         'entry_year_min' => optional_param('entry_year_min', '', PARAM_RAW_TRIMMED),
         'entry_year_max' => optional_param('entry_year_max', '', PARAM_RAW_TRIMMED),
         'filter_programs' => optional_param('filter_programs', '', PARAM_RAW_TRIMMED),
@@ -108,8 +108,17 @@ if ($run) {
             'confirm' => 1,
             'sesskey' => sesskey(),
         ]));
+
+        $confirmmsg = match ($options['sync_scope']) {
+            'courses_only' => get_string('confirm_sync_courses', 'local_morvaridsync'),
+            'teachers_only' => get_string('confirm_sync_teachers', 'local_morvaridsync'),
+            'students_only' => get_string('confirm_sync_students', 'local_morvaridsync'),
+            'suspend_only' => get_string('confirm_sync_suspend', 'local_morvaridsync'),
+            default => get_string('runsync_confirm', 'local_morvaridsync'),
+        };
+
         echo $OUTPUT->confirm(
-            get_string('runsync_confirm', 'local_morvaridsync'),
+            $confirmmsg,
             $confirmurl,
             new moodle_url('/local/morvaridsync/index.php')
         );
@@ -141,7 +150,6 @@ if ($run) {
 
 // --- Manual Sync Parameters Form ---
 $defaultterm = (string)get_config('local_morvaridsync', 'activeterm');
-$defaultscope = (string)(get_config('local_morvaridsync', 'sync_scope') ?: 'all');
 $defaultentrymin = (string)get_config('local_morvaridsync', 'entry_year_min');
 $defaultentrymax = (string)get_config('local_morvaridsync', 'entry_year_max');
 $defaultprograms = (string)get_config('local_morvaridsync', 'filter_programs');
@@ -151,7 +159,7 @@ $defaultautocreate = ($defaultautocreate === false || !empty($defaultautocreate)
 
 echo html_writer::start_div('card mb-4 shadow-sm');
 echo html_writer::start_div('card-header bg-primary text-white font-weight-bold d-flex justify-content-between align-items-center');
-echo html_writer::tag('span', 'تنظیمات و اجرای همگام‌سازی دستی با مروارید (سادا)');
+echo html_writer::tag('span', 'تنظیمات و اجرای همگام‌سازی مروارید (تفکیک‌شده و مرحله‌ای)');
 echo html_writer::end_div();
 echo html_writer::start_div('card-body');
 
@@ -175,18 +183,17 @@ echo html_writer::empty_tag('input', [
 echo html_writer::tag('small', 'کد ترم سادا/مروارید جهت همگام‌سازی.', ['class' => 'text-muted']);
 echo html_writer::end_div();
 
-// Scope select
+// Filter programs
 echo html_writer::start_div('col-md-4 mb-2');
-echo html_writer::tag('label', get_string('sync_scope', 'local_morvaridsync'), ['class' => 'font-weight-bold d-block']);
-$scopeoptions = [
-    'all' => get_string('scope_all', 'local_morvaridsync'),
-    'users_only' => get_string('scope_users_only', 'local_morvaridsync'),
-    'courses_only' => get_string('scope_courses_only', 'local_morvaridsync'),
-    'enrolments_only' => get_string('scope_enrolments_only', 'local_morvaridsync'),
-    'suspend_only' => get_string('scope_suspend_only', 'local_morvaridsync'),
-];
-echo html_writer::select($scopeoptions, 'sync_scope', $defaultscope, false, ['class' => 'custom-select form-control']);
-echo html_writer::tag('small', 'حوزه داده‌هایی که در مودل اعمال می‌شوند.', ['class' => 'text-muted']);
+echo html_writer::tag('label', get_string('filter_programs', 'local_morvaridsync'), ['class' => 'font-weight-bold d-block']);
+echo html_writer::empty_tag('input', [
+    'type' => 'text',
+    'name' => 'filter_programs',
+    'value' => $defaultprograms,
+    'placeholder' => 'مثال: 236, 339 یا رنج 200-350',
+    'class' => 'form-control',
+]);
+echo html_writer::tag('small', 'کدهای رشته با کاما یا رنج (خالی = همه رشته‌ها).', ['class' => 'text-muted']);
 echo html_writer::end_div();
 
 // Options checkboxes
@@ -223,7 +230,7 @@ echo html_writer::end_div(); // End row 1
 echo html_writer::start_div('row mb-3');
 
 // Entry year min
-echo html_writer::start_div('col-md-3 mb-2');
+echo html_writer::start_div('col-md-6 mb-2');
 echo html_writer::tag('label', get_string('entry_year_min', 'local_morvaridsync'), ['class' => 'font-weight-bold d-block']);
 echo html_writer::empty_tag('input', [
     'type' => 'text',
@@ -232,11 +239,11 @@ echo html_writer::empty_tag('input', [
     'placeholder' => 'مثال: 1403',
     'class' => 'form-control',
 ]);
-echo html_writer::tag('small', 'مثلاً 1403 برای ورودی‌های ۱۴۰۳ به بعد.', ['class' => 'text-muted']);
+echo html_writer::tag('small', 'فقط دانشجویان با سال ورود مساوی یا بزرگتر (مثلاً 1403 برای ورودی‌های ۱۴۰۳ به بعد).', ['class' => 'text-muted']);
 echo html_writer::end_div();
 
 // Entry year max
-echo html_writer::start_div('col-md-3 mb-2');
+echo html_writer::start_div('col-md-6 mb-2');
 echo html_writer::tag('label', get_string('entry_year_max', 'local_morvaridsync'), ['class' => 'font-weight-bold d-block']);
 echo html_writer::empty_tag('input', [
     'type' => 'text',
@@ -248,32 +255,87 @@ echo html_writer::empty_tag('input', [
 echo html_writer::tag('small', 'حداکثر سال ورود مجاز (اختیاری).', ['class' => 'text-muted']);
 echo html_writer::end_div();
 
-// Filter programs
-echo html_writer::start_div('col-md-6 mb-2');
-echo html_writer::tag('label', get_string('filter_programs', 'local_morvaridsync'), ['class' => 'font-weight-bold d-block']);
-echo html_writer::empty_tag('input', [
-    'type' => 'text',
-    'name' => 'filter_programs',
-    'value' => $defaultprograms,
-    'placeholder' => 'مثال: 236, 339 یا رنج 200-350',
-    'class' => 'form-control',
-]);
-echo html_writer::tag('small', 'کدهای رشته با کاما یا رنج با خط تیره (خالی = همه رشته‌ها).', ['class' => 'text-muted']);
-echo html_writer::end_div();
-
 echo html_writer::end_div(); // End row 2
 
-// Action buttons
-echo html_writer::start_div('d-flex gap-2 pt-2 border-top');
-echo html_writer::empty_tag('input', [
-    'type' => 'submit',
-    'value' => get_string('runsync', 'local_morvaridsync'),
-    'class' => 'btn btn-primary px-4',
-]);
+// Dedicated Action Buttons Section
+echo html_writer::start_div('mt-4 pt-3 border-top');
+echo html_writer::tag('h5', 'عملیات همگام‌سازی مروارید (به تفکیک بخش‌ها - بدون گزینه همه):', ['class' => 'font-weight-bold mb-2 text-dark']);
+echo html_writer::tag('p', 'برای جلوگیری از بار سنگین و خطای وقفه داده‌های مروارید، هر بخش با دکمه مستقل اجرا می‌شود:', ['class' => 'text-muted mb-3']);
 
-$diagurl = new moodle_url('/local/morvaridsync/index.php', ['diagnose' => 1, 'sesskey' => sesskey()]);
-echo html_writer::link($diagurl, get_string('run_diagnostics', 'local_morvaridsync'), ['class' => 'btn btn-secondary']);
+echo html_writer::start_div('row');
+
+// 1. Course Sync Button
+echo html_writer::start_div('col-lg-3 col-md-6 mb-3');
+echo html_writer::start_div('card h-100 border-primary shadow-sm text-center p-3');
+echo html_writer::tag('div', '📘', ['style' => 'font-size: 2rem; margin-bottom: 0.5rem;']);
+echo html_writer::tag('h6', '۱. همگام‌سازی درس‌ها', ['class' => 'font-weight-bold text-primary']);
+echo html_writer::tag('p', 'ایجاد ساختار ترم، دانشکده‌ها، دروس و جلسات آنلاین (سبک و سریع بدون لود کاربران).', ['class' => 'small text-muted mb-3', 'style' => 'min-height: 48px;']);
+echo html_writer::tag('button', get_string('btn_sync_courses', 'local_morvaridsync'), [
+    'type' => 'submit',
+    'name' => 'sync_scope',
+    'value' => 'courses_only',
+    'class' => 'btn btn-primary btn-block font-weight-bold shadow-sm',
+]);
 echo html_writer::end_div();
+echo html_writer::end_div();
+
+// 2. Teachers Sync Button
+echo html_writer::start_div('col-lg-3 col-md-6 mb-3');
+echo html_writer::start_div('card h-100 border-success shadow-sm text-center p-3');
+echo html_writer::tag('div', '👨‍🏫', ['style' => 'font-size: 2rem; margin-bottom: 0.5rem;']);
+echo html_writer::tag('h6', '۲. همگام‌سازی اساتید', ['class' => 'font-weight-bold text-success']);
+echo html_writer::tag('p', 'اتصال و ثبت‌نام اساتید ارائه‌دهنده هر درس در نقش استاد ویرایشگر (بدون لود دانشجویان).', ['class' => 'small text-muted mb-3', 'style' => 'min-height: 48px;']);
+echo html_writer::tag('button', get_string('btn_sync_teachers', 'local_morvaridsync'), [
+    'type' => 'submit',
+    'name' => 'sync_scope',
+    'value' => 'teachers_only',
+    'class' => 'btn btn-success btn-block font-weight-bold shadow-sm',
+]);
+echo html_writer::end_div();
+echo html_writer::end_div();
+
+// 3. Students Sync Button
+echo html_writer::start_div('col-lg-3 col-md-6 mb-3');
+echo html_writer::start_div('card h-100 border-warning shadow-sm text-center p-3');
+echo html_writer::tag('div', '🎓', ['style' => 'font-size: 2rem; margin-bottom: 0.5rem;']);
+echo html_writer::tag('h6', '۳. همگام‌سازی دانشجویان', ['class' => 'font-weight-bold text-dark']);
+echo html_writer::tag('p', 'دریافت دانشجویان ثبت‌نام‌شده هر درس از مروارید با فیلتر سال ورود و رشته و ثبت‌نام در دروس.', ['class' => 'small text-muted mb-3', 'style' => 'min-height: 48px;']);
+echo html_writer::tag('button', get_string('btn_sync_students', 'local_morvaridsync'), [
+    'type' => 'submit',
+    'name' => 'sync_scope',
+    'value' => 'students_only',
+    'class' => 'btn btn-warning btn-block font-weight-bold shadow-sm text-dark',
+]);
+echo html_writer::end_div();
+echo html_writer::end_div();
+
+// 4. Suspend Sync Button
+echo html_writer::start_div('col-lg-3 col-md-6 mb-3');
+echo html_writer::start_div('card h-100 border-secondary shadow-sm text-center p-3');
+echo html_writer::tag('div', '⏸️', ['style' => 'font-size: 2rem; margin-bottom: 0.5rem;']);
+echo html_writer::tag('h6', '۴. تعلیق ثبت‌نام‌ها', ['class' => 'font-weight-bold text-secondary']);
+echo html_writer::tag('p', 'بررسی دروس ترم و تعلیق دانشجویانی که در مروارید حذف شده‌اند اما در مودل باقی مانده‌اند.', ['class' => 'small text-muted mb-3', 'style' => 'min-height: 48px;']);
+echo html_writer::tag('button', get_string('btn_sync_suspend', 'local_morvaridsync'), [
+    'type' => 'submit',
+    'name' => 'sync_scope',
+    'value' => 'suspend_only',
+    'class' => 'btn btn-outline-secondary btn-block font-weight-bold shadow-sm',
+]);
+echo html_writer::end_div();
+echo html_writer::end_div();
+
+echo html_writer::end_div(); // End row
+
+echo html_writer::start_div('d-flex justify-content-end mt-3');
+$diagurl = new moodle_url('/local/morvaridsync/index.php', ['diagnose' => 1, 'sesskey' => sesskey()]);
+echo html_writer::link($diagurl, get_string('run_diagnostics', 'local_morvaridsync'), ['class' => 'btn btn-outline-info btn-sm']);
+echo html_writer::end_div();
+
+echo html_writer::end_div(); // End action section
+
+echo html_writer::end_tag('form');
+echo html_writer::end_div(); // card-body
+echo html_writer::end_div(); // card
 
 echo html_writer::end_tag('form');
 echo html_writer::end_div(); // card-body

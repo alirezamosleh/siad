@@ -55,7 +55,7 @@ class orchestrator {
 
         $scope = !empty($options['sync_scope'])
             ? (string)$options['sync_scope']
-            : (string)(get_config('local_morvaridsync', 'sync_scope') ?: 'all');
+            : (string)(get_config('local_morvaridsync', 'sync_scope') ?: 'courses_only');
 
         $suspendmissing = isset($options['suspend_missing_enrol'])
             ? (bool)$options['suspend_missing_enrol']
@@ -274,19 +274,14 @@ class orchestrator {
                 $summaryparts[] = '[' . implode(' | ', $filterinfo) . ']';
             }
 
-            // --- Scope Branching ---
+            // --- Scope Branching (Separated & Isolated Operations) ---
 
-            // 1. Suspend Only:
+            // 1. Suspend Only (سینک تعلیق‌ها):
             if ($scope === 'suspend_only') {
                 $suspmsg = $this->sync_suspensions_only($term, $opts);
                 $summaryparts[] = $suspmsg;
 
-            // 2. Users Only:
-            } else if ($scope === 'users_only') {
-                $usermsg = $this->direct_sync_users_and_workbooks($term, [], 0, $opts);
-                $summaryparts[] = "حالت فقط کاربران: " . $usermsg;
-
-            // 3. Courses Only:
+            // 2. Courses Only (سینک درس‌ها):
             } else if ($scope === 'courses_only') {
                 $rootcatid = $this->writer->ensure_category('مروارید / ' . $term, 'mv-term-' . $term, 0);
                 mapper::set(mapper::TYPE_TERM, $term, $rootcatid, $term);
@@ -302,51 +297,113 @@ class orchestrator {
                         $coursesynced++;
                     } catch (\Throwable $e) {
                         $this->writer->stats->errors++;
+                        $this->writer->stats->messages[] = 'Course error: ' . $e->getMessage();
                     }
                 }
-                $summaryparts[] = "حالت فقط دروس: {$coursesynced} درس و دسته‌بندی ایجاد یا به‌روزرسانی شد.";
+                $summaryparts[] = "سینک درس‌ها: تعداد {$coursesynced} درس و دسته‌بندی ایجاد یا به‌روزرسانی شد (بدون دریافت اطلاعات کاربران).";
 
-            // 4. Enrolments Only or Full Sync (All):
-            } else {
+            // 3. Teachers Only (سینک اساتید متناسب با درس‌ها):
+            } else if ($scope === 'teachers_only') {
                 $rootcatid = $this->writer->ensure_category('مروارید / ' . $term, 'mv-term-' . $term, 0);
-                mapper::set(mapper::TYPE_TERM, $term, $rootcatid, $term);
-
-                // Discover faculties & offers:
                 $facultymap = $this->discover_faculties($term, $rootcatid);
                 $offers = $this->discover_offers($term, $facultymap, $opts);
 
-                $offersynced = 0;
+                $teachersynced = 0;
+                $coursescount = 0;
+
+                foreach ($offers as $offer) {
+                    try {
+                        $facext = (string)($offer['_faculty_ext'] ?? $offer['hoffman_code'] ?? $offer['faculty_code'] ?? '');
+                        $catid = (isset($facultymap[$facext])) ? $facultymap[$facext]['categoryid'] : $rootcatid;
+                        $courseid = $this->writer->ensure_course($offer, $catid, $term);
+                        $coursescount++;
+
+                        $coursecode = (string)($offer['course_code'] ?? $offer['lecture'] ?? $offer['offered_course_code'] ?? '');
+                        $group = (string)($offer['group_no'] ?? '1');
+                        $offerid = (string)($offer['offer_id'] ?? $offer['group_code'] ?? '');
+
+                        // Teacher: Check embedded teacher info from OfferTeach first.
+                        $teachercode = (string)($offer['teacher_code'] ?? $offer['teach_code'] ?? $offer['username'] ?? '');
+                        if ($teachercode !== '' || !empty($offer['firstname'])) {
+                            $tuserid = $this->writer->ensure_user($offer, 'teacher', $term);
+                            if ($tuserid) {
+                                $this->writer->enrol($courseid, $tuserid, 'editingteacher');
+                                $teachersynced++;
+                            }
+                        } else {
+                            $teachers = $this->client->offer_teach($coursecode, $group, $term, $offerid);
+                            foreach ($teachers as $teacher) {
+                                $tuserid = $this->writer->ensure_user($teacher, 'teacher', $term);
+                                if ($tuserid) {
+                                    $this->writer->enrol($courseid, $tuserid, 'editingteacher');
+                                    $teachersynced++;
+                                }
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                        $this->writer->stats->errors++;
+                        $this->writer->stats->messages[] = 'Teacher sync error: ' . $e->getMessage();
+                    }
+                }
+                $summaryparts[] = "سینک اساتید: تعداد {$teachersynced} اتصال استاد به {$coursescount} درس انجام شد (بدون دریافت دانشجویان).";
+
+            // 4. Students Only (سینک کاربران/دانشجویان متناسب با درس‌ها):
+            } else if ($scope === 'students_only' || $scope === 'enrolments_only') {
+                $rootcatid = $this->writer->ensure_category('مروارید / ' . $term, 'mv-term-' . $term, 0);
+                $facultymap = $this->discover_faculties($term, $rootcatid);
+                $offers = $this->discover_offers($term, $facultymap, $opts);
+
+                $studentsynced = 0;
+                $coursescount = 0;
                 $syncedcoursestudents = [];
 
                 foreach ($offers as $offer) {
                     try {
-                        $this->sync_offer($offer, $term, $facultymap, $rootcatid, $opts, $syncedcoursestudents);
-                        $offersynced++;
+                        $facext = (string)($offer['_faculty_ext'] ?? $offer['hoffman_code'] ?? $offer['faculty_code'] ?? '');
+                        $catid = (isset($facultymap[$facext])) ? $facultymap[$facext]['categoryid'] : $rootcatid;
+                        $courseid = $this->writer->ensure_course($offer, $catid, $term);
+                        $coursescount++;
+
+                        if (!isset($syncedcoursestudents[$courseid])) {
+                            $syncedcoursestudents[$courseid] = [];
+                        }
+
+                        $coursecode = (string)($offer['course_code'] ?? $offer['lecture'] ?? $offer['offered_course_code'] ?? '');
+                        $group = (string)($offer['group_no'] ?? '1');
+                        $offerid = (string)($offer['offer_id'] ?? $offer['group_code'] ?? '');
+
+                        // Fetch registered students from WorkBookInfo2
+                        $students = $this->client->workbook_info2($coursecode, $group, $term, $offerid);
+                        foreach ($students as $student) {
+                            if (!$this->passes_student_filters($student, $opts)) {
+                                continue;
+                            }
+                            $userid = $this->writer->ensure_user($student, 'student', $term);
+                            if ($userid) {
+                                $this->writer->enrol($courseid, $userid, 'student');
+                                $syncedcoursestudents[$courseid][] = (int)$userid;
+                                $studentsynced++;
+                            }
+                        }
                     } catch (\Throwable $e) {
                         $this->writer->stats->errors++;
-                        $this->writer->stats->messages[] = 'Offer sync error: ' . $e->getMessage();
+                        $this->writer->stats->messages[] = "Student sync error ({$offerid}): " . $e->getMessage();
                     }
                 }
 
-                // Direct User Sync (Professors and Students):
-                $directsyncmsg = '';
-                $directsyncenabled = get_config('local_morvaridsync', 'direct_user_sync');
-                if ($directsyncenabled === false || !empty($directsyncenabled) || $offersynced === 0) {
-                    $directsyncmsg = $this->direct_sync_users_and_workbooks($term, $facultymap, $rootcatid, $opts);
-                }
-
-                $summaryparts[] = "همگام‌سازی {$offersynced} درس/مشخصه انجام شد.";
-                if ($directsyncmsg !== '') {
-                    $summaryparts[] = $directsyncmsg;
-                }
-
-                // Missing Enrolment Suspension (if enabled):
+                // If suspend missing enrolments is checked
                 if ($opts['suspend_missing_enrol'] && !empty($syncedcoursestudents)) {
                     $suscount = $this->suspend_missing_enrolments($term, $syncedcoursestudents);
                     if ($suscount > 0) {
                         $summaryparts[] = "تعداد {$suscount} ثبت‌نام ناموجود در مروارید تعلیق شدند.";
                     }
                 }
+
+                $summaryparts[] = "سینک دانشجویان: تعداد {$studentsynced} ثبت‌نام دانشجو در {$coursescount} درس انجام شد (بدون دخالت در اساتید).";
+
+            // Fallback:
+            } else {
+                $summaryparts[] = "دامنه همگام‌سازی نامعتبر است: " . s($scope);
             }
 
             if (!empty($this->writer->stats->messages)) {
