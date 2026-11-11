@@ -262,6 +262,9 @@ class BigBlueButtonApi
   end
 
   def join_password_for(room:, role:)
+    # [FIX - JOININ STABILITY]:
+    # در صورتی که جلسه هنوز در سرور JoinIN ایجاد نشده یا در حال اجرا نباشد، متد get_meeting_info خطای استثنا پرتاب می‌کرد و باعث کرش ۵۰۰ می‌شد.
+    # با افزودن این بلوک rescue، در صورت عدم پاسخ سرور، رمز عبور پیش‌فرض اتاق جایگزین می‌شود.
     begin
       info = bbb_server.get_meeting_info(room.meeting_id, nil)
       if role.to_s.casecmp('moderator').zero?

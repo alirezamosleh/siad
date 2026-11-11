@@ -23,6 +23,9 @@ module Api
 
       before_action :find_room, only: %i[show update destroy recordings recordings_processing purge_presentation public_show public_recordings]
 
+      # [FIX - PERFORMANCE OPTIMIZATION]:
+      # همگام‌سازی بلاکینگ جلسات BBB (sync_room_sessions) از اکشن index حذف شد تا بارگذاری لیست اتاق‌ها سریع و بدون وقفه باشد.
+      # این همگام‌سازی صرفاً به اکشن show (مشاهده یک اتاق خاص) محدود شده است تا مانع Timeout سرور تحت بار همزمان گردد.
       # JoinIN: refresh single room session/recordings on specific room view
       before_action :sync_room_sessions, only: %i[show]
       before_action :sync_room_recordings, only: :recordings

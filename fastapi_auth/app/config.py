@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     MOODLE_URL: str = "https://siad.hu.jz.ac.ir"            # آدرس عمومی پنل مودل
     MOODLE_INTERNAL_URL: str = "http://moodle:8080"        # آدرس شبکه داخلی داکر مودل
-    AUTH_SERVICE_URL: str = "https://auth.siad.hu.jz.ac.ir" # آدرس سرویس احراز هویت ما
+    AUTH_SERVICE_URL: str = "https://auth.hu.jz.ac.ir" # آدرس سرویس احراز هویت ما
     SSO_SECRET: str = "siad-hu-jz-ac-ir-super-secret-sso-key-2026-xyz"  # کلید مشترک امضای بلیت‌های JWT
     SSO_TOKEN_TTL_SECONDS: int = 120                       # مدت اعتبار بلیت ورود (ثانیه)
 

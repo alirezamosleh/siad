@@ -9,6 +9,7 @@
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="bigbluebuttonbnid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timestamp" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <!-- [FIX]: تغییر نوع به MEDIUMTEXT (با LENGTH="medium") برای جلوگیری از قطع شدن JSON لاگ در جلسات شلوغ بالای ۶۴ کیلوبایت -->
         <FIELD NAME="data" TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>

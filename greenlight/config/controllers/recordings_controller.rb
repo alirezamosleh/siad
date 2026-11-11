@@ -5,6 +5,9 @@ module Api
     class RecordingsController < ApiController
       skip_before_action :ensure_authenticated, only: :recording_url
 
+      # [FIX - PERFORMANCE OPTIMIZATION]:
+      # فراخوانی بلاکینگ sync_recordings از اکشن‌های index و recordings_count حذف شد.
+      # این عملیات سنگین به سرویس مستقل پس‌زمینه (کانتینر recordings-sync) محول شده است تا باز شدن لیست ضبط‌ها آنی باشد و نخ‌های وب‌پیکربندی Puma اشغال نگردند.
       # Background container (recordings-sync) handles scheduled sync; avoid blocking web requests
       before_action :find_recording, only: %i[update update_visibility recording_url]
       before_action only: %i[destroy] do

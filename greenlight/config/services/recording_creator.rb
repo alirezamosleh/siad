@@ -113,6 +113,8 @@ class RecordingCreator
     length
   end
 
+  # [FIX - DATA INTEGRITY]:
+  # بررسی وجود URL در فرمت‌های ضبط جهت جلوگیری از ثبت رکوردهای فرمت بدون لینک (مثلاً ضبط‌هایی که پردازش آن‌ها هنوز تکمیل نشده است).
   def create_formats(new_recording:)
     formats = @recording.dig(:playback, :format)
     return if formats.blank?
@@ -129,6 +131,8 @@ class RecordingCreator
     end
   end
 
+  # [FIX - JOININ TIMESTAMP COMPATIBILITY]:
+  # پشتیبانی از تایم‌استمپ‌های میلی‌ثانیه‌ای سرورهای BBB/JoinIN (تبدیل مقادیر بزرگتر از 10^10 به ثانیه) جهت جلوگیری از تاریخ‌های نامعتبر سال‌های دور.
   def parse_time(value)
     return nil if value.blank?
 

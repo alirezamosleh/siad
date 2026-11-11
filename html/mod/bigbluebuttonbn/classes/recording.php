@@ -804,10 +804,15 @@ class recording extends persistent {
         $recordingcount = count($recordings);
         mtrace("=> Found {$recordingcount} recordings to query");
 
-        // Grab the recording IDs.
-        $recordingids = array_map(function($recording) {
-            return $recording->recordingid;
-        }, $recordings);
+        // [FIX - JOININ / BBB SYNC BUG]:
+        // ۱. نگاشت رکوردهای دیتابیس بر اساس recordingid به جای آرایه ترتیبی جهت پیشگیری از خطای عدم انطباق اندیس
+        // ۲. رفع باگ if (!$id) که در PHP برای اولین عنصر (اندیس 0) مقدار true برگردانده و اولین ضبط هر دسته نادیده گرفته می‌شد.
+        $recordingsbyrecid = [];
+        $recordingids = [];
+        foreach ($recordings as $rec) {
+            $recordingsbyrecid[$rec->recordingid] = $rec;
+            $recordingids[] = $rec->recordingid;
+        }
 
         // Fetch all metadata for these recordings.
         mtrace("=> Fetching recording metadata from server");
@@ -816,15 +821,17 @@ class recording extends persistent {
         $foundcount = 0;
         foreach ($metadatas as $recordingid => $metadata) {
             mtrace("==> Found metadata for {$recordingid}.");
-            $id = array_search($recordingid, $recordingids);
-            if (!$id) {
+            // [FIX]: بررسی مستقیم وجود شناسه ضبط در دیکشنری به جای جستجوی خطی array_search
+            if (!isset($recordingsbyrecid[$recordingid])) {
                 // Recording was not found, skip.
                 mtrace("===> Skip as fetched recording was not found.");
                 continue;
             }
+            $currentrecord = $recordingsbyrecid[$recordingid];
+
             // Recording was found, update status.
             mtrace("===> Update local cache as fetched recording was found.");
-            $recording = new self(0, $recordings[$id], $metadata);
+            $recording = new self(0, $currentrecord, $metadata);
             $recording->set_status(self::RECORDING_STATUS_PROCESSED);
             $foundcount++;
 

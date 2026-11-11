@@ -133,6 +133,7 @@ if (!$recordid && count($records) > 1) {
     $table->sortable(true, 'joined', SORT_DESC);
     $table->pageable(true);
     $table->collapsible(false);
+    // [FIX]: حذف فراخوانی تکراری و متناقض is_downloading('payment_log') قبل از setup() که مانع دانلود صحیح اکسل/CSV می‌شد.
     $table->setup();
 
     if (!$table->is_downloading()) {
@@ -146,6 +147,7 @@ if (!$recordid && count($records) > 1) {
 
     // Add data.
     $record = reset($records);
+    // [FIX]: بررسی امن دکود JSON و آرایه بودن attendees جهت جلوگیری از Fatal Error در جلساتی که داده لاگ خالی یا ناقص است.
     $data = !empty($record->data) ? json_decode($record->data, true) : null;
     $attendees = (is_array($data) && isset($data['data']['attendees']) && is_array($data['data']['attendees']))
         ? $data['data']['attendees']

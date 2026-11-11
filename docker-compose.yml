@@ -29,20 +29,23 @@ services:
       - redis_data:/data
 
   
+  # [OFFICIAL PHP-FPM ARCHITECTURE]: کانتینر رسمی مودل با PHP 8.2-FPM به جای بیتنامی
+  # اتصال از طریق FastCGI پورت ۹۰۰۰ به Nginx جهت بالاترین پرفورمنس
   moodle:
-    image: bitnami/moodle:4.5
-    container_name: moodle_app
-    ports:
-      - "${MOODLE_PORT:-8080}:8080"
+    image: moodle_fpm:latest
+    build:
+      context: ./docker/moodle-fpm
+      dockerfile: Dockerfile
+    container_name: moodle_fpm
     restart: unless-stopped 
-    # entrypoint: ["/docker/moodle-entrypoint.sh"]
+    expose:
+      - "9000"
     extra_hosts:
       - "joinin.ir:185.37.54.19"
       - "join.jz.ac.ir:185.37.54.19"
       - "api0.joinin.ir:185.37.54.19"
       - "api.joinin.ir:185.37.54.19"
       - "faryan.cloud:185.37.54.19"
-        #- "mirror.arvancloud.ir:185.143.233.234"  
     environment:
       # ===== DATABASE CONFIG =====
       - MOODLE_DATABASE_TYPE=${DB_TYPE:-mariadb}
@@ -51,10 +54,10 @@ services:
       - MOODLE_DATABASE_USER=${DB_USER:-alirezabb}
       - MOODLE_DATABASE_PASSWORD=${DB_PASSWORD:-SEDO3482389D4}
       - MOODLE_DATABASE_NAME=${DB_NAME:-siad}
+      - MOODLE_DATABASE_PREFIX=${DB_PREFIX:-mdl_}
 
       # ===== ADMIN CREDENTIALS =====
-      - MOODLE_USERNAME=${MOODLE_ADMIN_USER:-admin1}
-      - MOODLE_PASSWORD=${MOODLE_ADMIN_PASSWORD:-N.mosleh63@}
+      - MOODLE_ADMIN=${MOODLE_ADMIN_USER:-admin1}
       - MOODLE_EMAIL=${MOODLE_ADMIN_EMAIL:-work.alirezamosleh@gmail.com}
       - MOODLE_SITE_NAME=${MOODLE_SITE_NAME:-سامانه سیاد}
 
@@ -63,38 +66,22 @@ services:
       - MOODLE_URL=${MOODLE_URL:-http://localhost:8080}
       - MOODLE_REVERSEPROXY=${MOODLE_REVERSEPROXY:-no}
       - MOODLE_SSLPROXY=${MOODLE_SSLPROXY:-no}
+      - MOODLE_DATAROOT=/var/moodledata
 
       # ===== REDIS SESSION =====
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-kali}
-
-      # ===== PHP SETTINGS =====
-      - PHP_MEMORY_LIMIT=512M
-      - PHP_MAX_EXECUTION_TIME=300
-      - PHP_UPLOAD_MAX_FILESIZE=100M
-      - PHP_POST_MAX_SIZE=100M
-
-      # ===== SKIP BOOTSTRAP (if database already exists) =====
-      # - MOODLE_SKIP_BOOTSTRAP=yes
-      - BITNAMI_DEBUG=false
-      - MOODLE_HTTP_PORT_NUMBER=8080
     volumes:
-      - ./html:/bitnami/moodle
-      - moodledata_data:/bitnami/moodledata
-      - ./php.ini:/opt/bitnami/php/etc/conf.d/custom.ini:ro
-      - ./moodle-entrypoint.sh:/docker/moodle-entrypoint.sh:ro
-        #- ./config.php:/bitnami/moodle/config.php
-      - ./php-fpm.conf:/opt/bitnami/php/etc/php-fpm.d/z-custom.conf
-    
-      
+      - ./html:/var/www/html:rw
+      - moodledata_data:/var/moodledata:rw
     depends_on:
       - mariadb
       - redis
 
-  # Moodle Cron - Essential for background tasks
+  # Moodle Cron - Scheduled background tasks via official PHP-FPM
   moodle-cron:
-    image: moodle-cron:v1
+    image: moodle_fpm:latest
     container_name: moodle_cron
     restart: unless-stopped
     command: ["cron"]
@@ -105,20 +92,26 @@ services:
       - MOODLE_DATABASE_USER=${DB_USER:-alirezabb}
       - MOODLE_DATABASE_PASSWORD=${DB_PASSWORD:-SEDO3482389D4}
       - MOODLE_DATABASE_NAME=${DB_NAME:-siad}
+      - MOODLE_DATABASE_PREFIX=${DB_PREFIX:-mdl_}
+      - MOODLE_ADMIN=${MOODLE_ADMIN_USER:-admin1}
       - MOODLE_HOST=${MOODLE_HOST:-localhost:8080}
       - MOODLE_URL=${MOODLE_URL:-http://localhost:8080}
       - MOODLE_REVERSEPROXY=${MOODLE_REVERSEPROXY:-no}
       - MOODLE_SSLPROXY=${MOODLE_SSLPROXY:-no}
+      - MOODLE_DATAROOT=/var/moodledata
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-kali}
     volumes:
-      - ./html:/bitnami/moodle
-      - moodledata_data:/bitnami/moodledata
-      - ./php.ini:/opt/bitnami/php/etc/conf.d/custom.ini:ro
-      - ./moodle-entrypoint-cron.sh:/docker/moodle-entrypoint.sh:ro
-        # ./config.php:/bitnami/moodle/config.php
+      - ./html:/var/www/html:rw
+      - moodledata_data:/var/moodledata:rw
     depends_on:
       - moodle
       - redis
 
+  # [INTEGRATION - FASTAPI SSO & AUTH]:
+  # سرویس احراز هویت ورود یکپارچه، کد ملی، OTP پیامک و اتصال به درگاه دولت‌من
+  # پورت اختصاصی ۸۰۱۶ روی هاست پابلیش شده و با افزونه auth_sadaa مودل هماهنگ است.
   # FastAPI Smart Auth & SSO Service (Moodle OAuth2/OIDC & Fast Login)
   fastapi_auth:
     image: moodle_fastapi_auth:latest
@@ -259,9 +252,10 @@ services:
     ports:
       - "${NGINX_HTTP_PORT:-80}:80"
       - "${NGINX_HTTPS_PORT:-443}:443"
+      - "${MOODLE_PORT:-8080}:8080"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx-site.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx-site.conf:/etc/nginx/conf.d/default.conf:ro
       - ./ssl:/etc/nginx/ssl:ro
       - ./html:/var/www/html:ro
       - moodledata_data:/var/moodledata:ro
@@ -269,10 +263,10 @@ services:
       - nginx_logs:/var/log/nginx:rw   
       #greenlight
       - ./greenlight/nginx/snippets:/etc/nginx/snippets:ro
-
-        #depends_on:
-      #- moodle
-      #- greenlight-v3
+    depends_on:
+      - moodle
+      - greenlight-v3
+      - fastapi_auth
 
 
 volumes:
